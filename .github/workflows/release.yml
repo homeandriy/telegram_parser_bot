@@ -1,0 +1,130 @@
+name: Build and release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: telegram-alert-monitor-release
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      value: ${{ steps.version.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: version
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          version="$(tr -d '\r\n' < VERSION)"
+          test "$TAG_NAME" = "v$version"
+          printf 'value=%s\n' "$version" >> "$GITHUB_OUTPUT"
+
+  windows:
+    needs: version
+    runs-on: windows-latest
+    env:
+      VERSION: ${{ needs.version.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies and test
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e '.[ui,build]'
+          python -m unittest discover -s tests
+
+      - name: Build portable Windows application
+        shell: pwsh
+        run: python -m PyInstaller --noconfirm --clean TelegramAlertMonitor.spec
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress --yes
+
+      - name: Build Windows release assets
+        shell: pwsh
+        run: |
+          & iscc.exe "/DAppVersion=$env:VERSION" installer/telegram-alert-monitor.iss
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed: $LASTEXITCODE" }
+          Compress-Archive -Path dist/TelegramAlertMonitor/* -DestinationPath "dist/TelegramAlertMonitor-v$env:VERSION-windows-x64.zip" -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          if-no-files-found: error
+          path: |
+            dist/TelegramAlertMonitor-*-windows-x64.zip
+            dist/installer/TelegramAlertMonitor-v*-Setup.exe
+
+  source:
+    needs: version
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Package versioned source archive
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          staging="$(mktemp -d)"
+          mkdir -p "$staging/telegram-alert-monitor-$VERSION"
+          git archive "$SOURCE_SHA" | tar -x -C "$staging/telegram-alert-monitor-$VERSION"
+          printf '%s' "$VERSION" > "$staging/telegram-alert-monitor-$VERSION/VERSION"
+          tar -C "$staging" -czf "telegram-alert-monitor-$VERSION-source.tar.gz" "telegram-alert-monitor-$VERSION"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-release
+          if-no-files-found: error
+          path: telegram-alert-monitor-*-source.tar.gz
+
+  release:
+    needs: [version, windows, source]
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.value }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Generate release notes
+        run: |
+          awk -v header="## v$VERSION - " '
+            /^## v/ && found { exit }
+            index($0, header) == 1 { found = 1 }
+            found { print }
+          ' CHANGELOG.md > current-changelog.md
+          test -s current-changelog.md
+          {
+            printf '# Telegram Alert Monitor v%s\n\n' "$VERSION"
+            printf 'Automated build for commit `%s`.\n\n' "$GITHUB_SHA"
+            cat current-changelog.md
+          } > release-notes.md
+
+      - name: Publish GitHub release
+        run: |
+          gh release create "v$VERSION" --target "$GITHUB_SHA" --title "Telegram Alert Monitor v$VERSION" --notes-file release-notes.md
+          find release-assets -type f -print0 | xargs -0 -r gh release upload "v$VERSION" --clobber

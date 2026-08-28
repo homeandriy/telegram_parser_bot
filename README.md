@@ -47,5 +47,19 @@ Daemon раз на 30 секунд завантажує по 10 останніх
 Після збірки EXE, якщо встановлено Inno Setup:
 
 ```powershell
-.\tools\build-installer.ps1
+.\tools\build-installer.ps1 -Version 0.1.0
 ```
+
+## Release
+
+Реліз запускається push-ем тега, який точно відповідає файлу `VERSION`:
+
+```powershell
+.\tools\build-release.ps1 -Version (Get-Content VERSION)
+git add VERSION CHANGELOG.md .github\workflows\release.yml installer\telegram-alert-monitor.iss tools
+git commit -m "chore(release): v0.1.0"
+git tag v0.1.0
+git push origin main v0.1.0
+```
+
+GitHub Actions виконує тести, створює portable Windows ZIP, Windows EXE-інсталятор та versioned source archive, а потім додає їх до GitHub Release.

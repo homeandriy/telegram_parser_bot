@@ -1,5 +1,7 @@
 #define AppName "Telegram Alert Monitor"
+#ifndef AppVersion
 #define AppVersion "0.1.0"
+#endif
 #define AppExeName "TelegramAlertMonitor.exe"
 
 [Setup]
@@ -10,7 +12,7 @@ DefaultDirName={autopf}\Telegram Alert Monitor
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 OutputDir=..\dist\installer
-OutputBaseFilename=TelegramAlertMonitor-Setup
+OutputBaseFilename=TelegramAlertMonitor-v{#AppVersion}-Setup
 SetupIconFile=..\assets\telegram-alert.ico
 WizardImageFile=..\assets\wizard-large.bmp
 WizardSmallImageFile=..\assets\wizard-small.bmp
