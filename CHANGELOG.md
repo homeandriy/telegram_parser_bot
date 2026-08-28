@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## v0.3.1 - 2026-08-29
+
+### Fixed
+
+- Linux Make targets now invoke package scripts through Bash on GitHub Actions.
+
 ## v0.3.0 - 2026-08-29
 
 ### Added

@@ -47,7 +47,7 @@ Daemon раз на 30 секунд завантажує по 10 останніх
 Після збірки EXE, якщо встановлено Inno Setup:
 
 ```powershell
-.\tools\build-installer.ps1 -Version 0.3.0
+.\tools\build-installer.ps1 -Version 0.3.1
 ```
 
 ## Linux packages
@@ -76,9 +76,9 @@ make package-rpm PYTHON=python3.11
 ```powershell
 .\tools\build-release.ps1 -Version (Get-Content VERSION)
 git add VERSION CHANGELOG.md .github\workflows\release.yml installer\telegram-alert-monitor.iss tools
-git commit -m "chore(release): v0.3.0"
-git tag v0.3.0
-git push origin main v0.3.0
+git commit -m "chore(release): v0.3.1"
+git tag v0.3.1
+git push origin main v0.3.1
 ```
 
 GitHub Actions виконує тести, створює portable Windows ZIP, Windows EXE-інсталятор, DEB, RPM і versioned source archive, а потім додає їх до GitHub Release.

@@ -10,9 +10,9 @@ build-linux:
 	$(PYTHON) -m PyInstaller --noconfirm --clean TelegramAlertMonitor.spec
 
 package-deb: build-linux
-	tools/build-deb.sh "$(VERSION)" dist/TelegramAlertMonitor
+	bash tools/build-deb.sh "$(VERSION)" dist/TelegramAlertMonitor
 
 package-rpm: build-linux
-	tools/build-rpm.sh "$(VERSION)" dist/TelegramAlertMonitor
+	bash tools/build-rpm.sh "$(VERSION)" dist/TelegramAlertMonitor
 
 packages-linux: package-deb package-rpm
