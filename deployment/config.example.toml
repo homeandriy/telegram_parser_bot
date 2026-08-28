@@ -1,0 +1,36 @@
+[database]
+# The database is the postgres service in this same Compose application.
+dsn = "postgresql://telegram_monitor:change-me@postgres:5432/telegram_monitor"
+
+[polling]
+normal_seconds = 30
+alert_seconds = 2
+alert_mode_minutes = 180
+
+[telethon]
+api_id = 0
+api_hash = ""
+session_path = "/var/lib/telegram-alert-monitor/telegram-monitor.session"
+
+[notifier]
+endpoint = ""
+secret = ""
+
+[rules]
+escalation_patterns = ["повітряна тривога", "воздушная тревога"]
+critical_patterns = ["балістика на київ", "київ в укриття", "балістика київ"]
+
+[[channels]]
+name = "єРадар"
+username = "eRadarrua"
+source = "public"
+
+[[channels]]
+name = "INSIDER UA"
+username = "insiderUKR"
+source = "public"
+
+[[channels]]
+name = "Vanek Nikolaev"
+username = "vanek_nikolaev"
+source = "public"

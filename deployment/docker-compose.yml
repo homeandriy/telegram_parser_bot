@@ -1,0 +1,33 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: telegram_monitor
+      POSTGRES_USER: telegram_monitor
+      POSTGRES_PASSWORD: change-me
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U telegram_monitor -d telegram_monitor"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  monitor:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+    command: ["telegram-parser", "--daemon", "--config", "/etc/telegram-alert-monitor/config.toml", "--state-dir", "/etc/telegram-alert-monitor/state"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./config.toml:/etc/telegram-alert-monitor/config.toml:ro
+      - ./state:/etc/telegram-alert-monitor/state
+      - telegram-session:/var/lib/telegram-alert-monitor
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  telegram-session:

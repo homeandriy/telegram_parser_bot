@@ -1,0 +1,38 @@
+[database]
+dsn = "postgresql://telegram_monitor:change-me@127.0.0.1:5432/telegram_monitor"
+
+[polling]
+normal_seconds = 30
+alert_seconds = 2
+alert_mode_minutes = 180
+
+[telethon]
+# Create these at https://my.telegram.org. Keep them private.
+api_id = 0
+api_hash = ""
+session_path = "telegram-monitor.session"
+
+[notifier]
+# Optional endpoint for the future mobile alarm service. It receives a signed JSON POST.
+endpoint = ""
+secret = ""
+
+[rules]
+# Adjust these rules to the sources you trust; matching is case-insensitive.
+escalation_patterns = ["повітряна тривога", "воздушная тревога"]
+critical_patterns = ["балістика на київ", "київ в укриття", "балістика київ"]
+
+[[channels]]
+name = "єРадар"
+username = "eRadarrua"
+source = "public"
+
+[[channels]]
+name = "INSIDER UA"
+username = "insiderUKR"
+source = "public"
+
+[[channels]]
+name = "Vanek Nikolaev"
+username = "vanek_nikolaev"
+source = "public"

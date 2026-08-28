@@ -1,0 +1,15 @@
+[Unit]
+Description=Telegram Alert Monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=telegram-monitor
+WorkingDirectory=/opt/telegram-alert-monitor
+ExecStart=/opt/telegram-alert-monitor/.venv/bin/telegram-parser --daemon --config /etc/telegram-alert-monitor/config.toml
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
