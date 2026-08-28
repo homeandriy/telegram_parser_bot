@@ -118,9 +118,10 @@ jobs:
             --env VERSION \
             rockylinux:9 \
             bash -lc '
-              dnf install -y make python3.11 python3.11-pip rpm-build \
-                dbus-libs fontconfig freetype libX11 libXext libXrandr libatomic \
+              dnf install -y make python3.11 python3.11-pip rpm-build systemd-rpm-macros \
+                atk cairo dbus-libs fontconfig freetype gdk-pixbuf2 gtk3 libX11 libX11-xcb libXext libXrandr libatomic \
                 libxcb libxkbcommon libxkbcommon-x11 pulseaudio-libs \
+                pango \
                 xcb-util xcb-util-cursor xcb-util-image xcb-util-keysyms \
                 xcb-util-renderutil xcb-util-wm
               python3.11 -m pip install --upgrade pip

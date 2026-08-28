@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## v0.3.3 - 2026-08-29
+
+### Fixed
+
+- RPM build now installs the systemd RPM macros required for the service-unit path.
+- RHEL package builds include Qt plugin runtime libraries to avoid PyInstaller missing-library warnings.
+
 ## v0.3.2 - 2026-08-29
 
 ### Fixed

@@ -1,6 +1,6 @@
 #define AppName "Telegram Alert Monitor"
 #ifndef AppVersion
-#define AppVersion "0.3.2"
+#define AppVersion "0.3.3"
 #endif
 #define AppExeName "TelegramAlertMonitor.exe"
 
