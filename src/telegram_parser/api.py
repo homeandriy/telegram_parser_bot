@@ -56,7 +56,7 @@ def create_app(settings: Settings, state: StateRepository) -> FastAPI:
         finally:
             await store.close()
 
-    app = FastAPI(title="Telegram Alert API", version="0.2.0", lifespan=lifespan, docs_url=None, redoc_url=None)
+    app = FastAPI(title="Telegram Alert API", version="0.3.0", lifespan=lifespan, docs_url=None, redoc_url=None)
 
     @app.get("/api/health")
     async def health() -> dict[str, object]:

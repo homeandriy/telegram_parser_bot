@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## v0.3.0 - 2026-08-29
+
+### Added
+
+- Debian package for Debian, Ubuntu, and elementary OS installations.
+- RHEL 9 compatible RPM package for Red Hat Enterprise Linux, Rocky Linux, AlmaLinux, and CentOS Stream.
+- Make targets for Linux portable, DEB, and RPM builds.
+
+### Changed
+
+- Tagged GitHub releases now publish DEB and RPM assets alongside Windows and source archives.
+
 ## v0.2.0 - 2026-08-28
 
 ### Added
