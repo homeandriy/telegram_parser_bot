@@ -7,7 +7,7 @@ Wants=network-online.target
 Type=simple
 User=telegram-monitor
 WorkingDirectory=/opt/telegram-alert-monitor
-ExecStart=/opt/telegram-alert-monitor/.venv/bin/telegram-parser --daemon --config /etc/telegram-alert-monitor/config.toml
+ExecStart=/usr/bin/telegram-alert-monitor --daemon --config /etc/telegram-alert-monitor/config.toml
 Restart=always
 RestartSec=5
 
