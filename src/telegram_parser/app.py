@@ -8,7 +8,6 @@ from pathlib import Path
 from .config import load_settings
 from .monitor import run_daemon
 from .state import StateRepository
-from .ui import run_ui
 
 
 def main() -> int:
@@ -21,6 +20,9 @@ def main() -> int:
         state_dir = args.state_dir or args.config.parent / "state"
         run_daemon(load_settings(args.config), StateRepository(state_dir))
         return 0
+
+    from .ui import run_ui
+
     return run_ui(StateRepository(args.state_dir))
 
 

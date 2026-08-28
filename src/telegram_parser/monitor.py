@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -13,6 +14,9 @@ from .rules import evaluate_scenarios
 from .sources import PublicPreviewSource, TelethonSource
 from .state import Resource, StateRepository
 from .storage import PostgresStore
+
+
+logger = logging.getLogger(__name__)
 
 
 class Monitor:
@@ -26,7 +30,13 @@ class Monitor:
     async def sync_once(self) -> int:
         await self.store.connect()
         try:
-            return await self._sync_channels()
+            try:
+                created = await self._sync_channels()
+            except Exception:
+                await self.store.record_check(False)
+                raise
+            await self.store.record_check(True)
+            return created
         finally:
             await self.store.close()
 
@@ -34,7 +44,13 @@ class Monitor:
         await self.store.connect()
         try:
             while True:
-                await self._sync_channels()
+                try:
+                    await self._sync_channels()
+                except Exception:
+                    logger.exception("Telegram synchronization failed")
+                    await self.store.record_check(False)
+                else:
+                    await self.store.record_check(True)
                 await asyncio.sleep(self.settings.normal_seconds)
         finally:
             await self.store.close()
@@ -60,19 +76,28 @@ class Monitor:
                 continue
             created += 1
             for match in evaluate_scenarios(message, rule):
-                await self._handle_match(message_id, message, resource, match.index, match.action, match.matched_terms)
+                await self._handle_match(message_id, message, resource, match.rule_id, match.rule_title, match.action, match.matched_terms)
         return created
 
-    async def _handle_match(self, message_id: int, message, resource: Resource, index: int, action: dict, terms: tuple[str, ...]) -> None:
+    async def _handle_match(
+        self,
+        message_id: int,
+        message,
+        resource: Resource,
+        rule_id: str,
+        rule_title: str,
+        action: dict,
+        terms: tuple[str, ...],
+    ) -> None:
         from .models import AlertEvent
 
-        event = AlertEvent(message, f"scenario:{resource.id}:{index}", ", ".join(terms))
-        event_id = await self.store.save_event(message_id, event)
+        event = AlertEvent(message, f"rule:{resource.id}:{rule_id}", ", ".join(terms))
+        event_id = await self.store.save_event(message_id, event, resource.id, resource.name, rule_id, rule_title)
         if event_id is None:
             return
         action_result = await self._execute_action(action, event_id, event)
         if self.state:
-            self.state.append_event({"resource_id": resource.id, "resource": resource.name, "scenario": index, "matched": list(terms), "message": message.text, "url": message.url, "action": action_result})
+            self.state.append_event({"resource_id": resource.id, "resource": resource.name, "rule_id": rule_id, "rule_title": rule_title, "matched": list(terms), "message": message.text, "url": message.url, "action": action_result})
 
     async def _execute_action(self, action: dict, event_id: int, event) -> str:
         url = str(action.get("url", "")).strip()
@@ -110,4 +135,9 @@ def run_preview_sync(settings: Settings) -> str:
 
 
 def run_daemon(settings: Settings, state: StateRepository | None = None) -> None:
-    asyncio.run(Monitor(settings, state).daemon())
+    from .api import serve_api
+
+    async def run_services() -> None:
+        await asyncio.gather(Monitor(settings, state).daemon(), serve_api(settings, state))
+
+    asyncio.run(run_services())

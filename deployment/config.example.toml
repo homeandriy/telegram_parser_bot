@@ -3,9 +3,13 @@
 dsn = "postgresql://telegram_monitor:change-me@postgres:5432/telegram_monitor"
 
 [polling]
-normal_seconds = 30
+normal_seconds = 10
 alert_seconds = 2
 alert_mode_minutes = 180
+
+[api]
+host = "0.0.0.0"
+port = 8080
 
 [telethon]
 api_id = 0

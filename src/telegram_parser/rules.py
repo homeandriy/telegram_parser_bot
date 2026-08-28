@@ -12,6 +12,14 @@ class ScenarioMatch:
     index: int
     action: dict
     matched_terms: tuple[str, ...]
+    rule_id: str
+    rule_title: str
+
+
+@dataclass(frozen=True)
+class RuleDescriptor:
+    id: str
+    title: str
 
 
 def evaluate_scenarios(message: TelegramMessage, rule: dict) -> list[ScenarioMatch]:
@@ -29,8 +37,29 @@ def evaluate_scenarios(message: TelegramMessage, rule: dict) -> list[ScenarioMat
     for index, scenario in enumerate(scenarios, start=1):
         matched, terms = match_node(message.text, scenario)
         if matched:
-            matches.append(ScenarioMatch(index, scenario.get("action", {}), tuple(terms)))
+            matches.append(
+                ScenarioMatch(
+                    index,
+                    scenario.get("action", {}),
+                    tuple(terms),
+                    str(scenario.get("id", f"scenario-{index}")),
+                    str(scenario.get("title", f"Сценарій {index}")),
+                )
+            )
     return matches
+
+
+def describe_scenarios(rule: dict) -> list[RuleDescriptor]:
+    """Return stable API-facing identifiers for the configured scenarios."""
+    direct_items = [item for item in rule.get("items", []) if not item.get("scenario")]
+    scenarios: list[dict] = []
+    if direct_items:
+        scenarios.append({"id": "scenario-1", "title": "Сценарій 1"})
+    scenarios.extend(item for item in rule.get("items", []) if item.get("scenario"))
+    return [
+        RuleDescriptor(str(scenario.get("id", f"scenario-{index}")), str(scenario.get("title", f"Сценарій {index}")))
+        for index, scenario in enumerate(scenarios, start=1)
+    ]
 
 
 def match_node(text: str, node: dict) -> tuple[bool, list[str]]:

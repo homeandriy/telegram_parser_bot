@@ -20,6 +20,8 @@ class Settings:
     normal_seconds: int
     alert_seconds: int
     alert_mode_minutes: int
+    api_host: str
+    api_port: int
     api_id: int
     api_hash: str
     session_path: str
@@ -35,6 +37,7 @@ def load_settings(path: Path) -> Settings:
         data = tomllib.load(handle)
     database = data.get("database", {})
     polling = data.get("polling", {})
+    api = data.get("api", {})
     telethon = data.get("telethon", {})
     notifier = data.get("notifier", {})
     rules = data.get("rules", {})
@@ -58,6 +61,8 @@ def load_settings(path: Path) -> Settings:
         normal_seconds=max(1, int(polling.get("normal_seconds", 30))),
         alert_seconds=max(2, int(polling.get("alert_seconds", 2))),
         alert_mode_minutes=max(1, int(polling.get("alert_mode_minutes", 180))),
+        api_host=str(api.get("host", "127.0.0.1")),
+        api_port=max(1, min(65535, int(api.get("port", 8080)))),
         api_id=int(telethon.get("api_id", 0)),
         api_hash=str(telethon.get("api_hash", "")),
         session_path=str(telethon.get("session_path", "telegram-monitor.session")),

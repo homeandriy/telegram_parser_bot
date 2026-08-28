@@ -3,6 +3,10 @@ __pycache__/
 *.py[cod]
 build/
 dist/
-*.spec
+.idea/
+*.egg-info/
+logs/*
+!logs/.gitkeep
 config.toml
+config/settings.toml
 deployment/config.toml
