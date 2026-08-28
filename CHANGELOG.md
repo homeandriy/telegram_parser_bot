@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## v0.3.2 - 2026-08-29
+
+### Fixed
+
+- Linux package build environments install Qt runtime libraries before PyInstaller analysis.
+
 ## v0.3.1 - 2026-08-29
 
 ### Fixed
