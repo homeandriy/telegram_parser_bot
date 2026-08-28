@@ -10,6 +10,9 @@ import asyncpg
 from .models import AlertEvent, TelegramMessage
 
 
+EVENT_RETENTION_LIMIT = 5_000
+
+
 def event_idempotency_key(message: TelegramMessage, rule_reference: str) -> str:
     """Return a stable key for one rule matching one Telegram message."""
     payload = "\x1f".join((message.source, message.channel, message.external_id, rule_reference))
@@ -110,7 +113,7 @@ class PostgresStore:
             raise RuntimeError("Store is not connected")
         idempotency_key = event_idempotency_key(event.message, event.kind)
         async with self.pool.acquire() as connection:
-            return await connection.fetchval(
+            event_id = await connection.fetchval(
                 """
                 INSERT INTO alert_events (message_id, kind, matched_pattern, resource_id, resource_name, rule_id, rule_title, idempotency_key)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -126,6 +129,20 @@ class PostgresStore:
                 rule_title,
                 idempotency_key,
             )
+            if event_id is not None:
+                await connection.execute(
+                    """
+                    DELETE FROM alert_events
+                    WHERE id IN (
+                        SELECT id
+                        FROM alert_events
+                        ORDER BY created_at DESC, id DESC
+                        OFFSET $1
+                    )
+                    """,
+                    EVENT_RETENTION_LIMIT,
+                )
+            return event_id
 
     async def mark_delivered(self, event_id: int) -> bool:
         if self.pool is None:
