@@ -1,9 +1,9 @@
 from datetime import datetime, timezone
 import unittest
 
-from telegram_parser.models import TelegramMessage
-from telegram_parser.rules import describe_scenarios, evaluate_scenarios
-from telegram_parser.storage import event_idempotency_key
+from telegram_parser.domain.models import TelegramMessage
+from telegram_parser.domain.rules import describe_scenarios, evaluate_scenarios
+from telegram_parser.infrastructure.storage import event_idempotency_key
 
 
 class EventIdentityTest(unittest.TestCase):

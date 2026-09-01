@@ -8,7 +8,7 @@ import json
 
 import httpx
 
-from .models import AlertEvent
+from ..domain.models import AlertEvent
 
 
 class WebhookNotifier:

@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
 import unittest
 
-from telegram_parser.models import TelegramMessage
-from telegram_parser.rules import evaluate_scenarios
+from telegram_parser.domain.models import TelegramMessage
+from telegram_parser.domain.rules import evaluate_scenarios
 
 
 class ScenarioRulesTest(unittest.TestCase):

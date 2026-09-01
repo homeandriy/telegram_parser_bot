@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+## v0.5.0 - 2026-09-02
+
+### Added
+
+- Offline alerts.in.ua Location UID reference bundled into Windows EXE, Docker, DEB and RPM builds.
+- Cascading desktop location selector: oblast, then rayon, with one stored rayon UID.
+- Location API endpoints and channel metadata with automatically resolved parent oblast.
+- DEB/RPM daemon environment template and safe Proxmox update guide.
+
+### Changed
+
+- Telegram polling uses alerts.in.ua only to accelerate resources whose configured rayon UID is under air raid.
+- Application source is organized into application, alerts, api, core, desktop, domain, infrastructure and notifications packages.
+
 ## v0.4.0 - 2026-09-01
 
 ### Added

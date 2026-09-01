@@ -28,10 +28,11 @@ from PySide6.QtWidgets import (
 )
 
 from .branding import asset_path
-from .config import ChannelConfig
-from .sources import PublicPreviewSource
+from ..alerts.locations import AlertLocation, OBLAST_TYPE, RAION_TYPE, SPECIAL_CITY_TYPE, load_bundled_locations
+from ..core.config import ChannelConfig
+from ..infrastructure.sources import PublicPreviewSource
 from .state import Resource, StateRepository
-from .ui_helpers import set_button_icon
+from .helpers import set_button_icon
 
 
 def normalize_username(url: str) -> str:
@@ -182,6 +183,17 @@ class ImagePreviewWorker(QThread):
             self.failed.emit(self.url, str(error))
 
 
+
+class LocationReferenceWorker(QThread):
+    completed = Signal(object)
+    failed = Signal(str)
+
+    def run(self) -> None:
+        try:
+            self.completed.emit(load_bundled_locations())
+        except Exception as error:
+            self.failed.emit(str(error))
+
 class AddResourceDialog(QDialog):
     def __init__(self, fetch: Callable[[Resource, int, Callable], None], resource: Resource | None = None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -195,12 +207,23 @@ class AddResourceDialog(QDialog):
         self.sync_type.addItem("Публічний t.me/s/", "public")
         self.sync_type.addItem("Telegram API / Telethon", "telethon")
         self.name = QLineEdit(placeholderText="За замовчуванням — назва каналу")
+        self.location_uid = QLineEdit(placeholderText="UID району з довідника alerts.in.ua")
+        self.oblast = QComboBox()
+        self.raion = QComboBox()
+        self.raion.setEnabled(False)
+        self.location_status = QLabel("Завантаження довідника областей і районів…")
+        self.location_status.setWordWrap(True)
+        self.location_worker: LocationReferenceWorker | None = None
+        self.locations: list[AlertLocation] = []
+        self.oblast.currentIndexChanged.connect(self.load_raions)
+        self.raion.currentIndexChanged.connect(self.select_raion)
         self.description = QPlainTextEdit()
         self.description.setPlaceholderText("Необов’язковий особистий опис")
         if resource:
             self.url.setText(resource.url)
             self.sync_type.setCurrentIndex(max(0, self.sync_type.findData(resource.sync_type)))
             self.name.setText(resource.name)
+            self.location_uid.setText(resource.location_uid)
             self.description.setPlainText(resource.description)
         self.test_button = QPushButton("Тест: завантажити 10 останніх")
         set_button_icon(self.test_button, QStyle.StandardPixmap.SP_BrowserReload, "Перевірити ресурс та отримати 10 останніх повідомлень")
@@ -218,12 +241,69 @@ class AddResourceDialog(QDialog):
         form.addRow("URL", self.url)
         form.addRow("Тип синхронізації", self.sync_type)
         form.addRow("Назва", self.name)
+        form.addRow("Область", self.oblast)
+        form.addRow("Район", self.raion)
+        form.addRow("UID району alerts.in.ua", self.location_uid)
+        form.addRow("Довідник", self.location_status)
         form.addRow("Опис", self.description)
         layout = QVBoxLayout(self)
         layout.addLayout(form)
         layout.addWidget(self.test_button)
         layout.addWidget(self.result)
         layout.addWidget(buttons)
+        self.load_location_reference()
+
+    def load_location_reference(self) -> None:
+        self.location_worker = LocationReferenceWorker()
+        self.location_worker.completed.connect(self.location_reference_loaded)
+        self.location_worker.failed.connect(self.location_reference_failed)
+        self.location_worker.start()
+
+    def location_reference_loaded(self, locations: object) -> None:
+        self.locations = list(locations)
+        self.oblast.blockSignals(True)
+        self.oblast.clear()
+        self.oblast.addItem("Оберіть область", None)
+        for location in self.locations:
+            if location.location_type in {OBLAST_TYPE, SPECIAL_CITY_TYPE}:
+                self.oblast.addItem(location.title, location.uid)
+        self.oblast.blockSignals(False)
+        selected_uid = self.location_uid.text().strip()
+        selected = next((item for item in self.locations if str(item.uid) == selected_uid), None)
+        if selected is not None:
+            oblast_uid = selected.oblast_uid or selected.uid
+            index = self.oblast.findData(oblast_uid)
+            if index >= 0:
+                self.oblast.setCurrentIndex(index)
+                self.load_raions()
+                self.raion.setCurrentIndex(max(0, self.raion.findData(selected.uid)))
+        self.location_status.setText("Довідник alerts.in.ua завантажено. Оберіть область, потім район.")
+
+    def location_reference_failed(self, error: str) -> None:
+        self.location_status.setText(f"Не вдалося завантажити довідник: {error}. Вкажіть UID району вручну.")
+
+    def load_raions(self) -> None:
+        self.raion.blockSignals(True)
+        self.raion.clear()
+        oblast_uid = self.oblast.currentData()
+        if oblast_uid is None:
+            self.raion.setEnabled(False)
+            self.raion.blockSignals(False)
+            return
+        selected_oblast = next((item for item in self.locations if item.uid == oblast_uid), None)
+        options = [item for item in self.locations if item.location_type == RAION_TYPE and item.oblast_uid == oblast_uid]
+        if selected_oblast is not None and selected_oblast.location_type == SPECIAL_CITY_TYPE:
+            options = [selected_oblast]
+        self.raion.addItem("Оберіть район", None)
+        for location in options:
+            self.raion.addItem(location.title, location.uid)
+        self.raion.setEnabled(True)
+        self.raion.blockSignals(False)
+
+    def select_raion(self) -> None:
+        uid = self.raion.currentData()
+        if uid is not None:
+            self.location_uid.setText(str(uid))
 
     def resource(self) -> Resource:
         username = normalize_username(self.url.text())
@@ -234,6 +314,7 @@ class AddResourceDialog(QDialog):
             sync_type=str(self.sync_type.currentData()),
             name=self.name.text().strip() or username,
             description=self.description.toPlainText().strip(),
+            location_uid=self.location_uid.text().strip(),
         )
 
     def test_resource(self) -> None:
@@ -291,11 +372,12 @@ class MainWindow(QMainWindow):
 
     def channels_tab(self) -> QWidget:
         tab = QWidget()
-        self.resource_table = ResourceTable(0, 3)
-        self.resource_table.setHorizontalHeaderLabels(["Назва", "Канал", "Опис"])
+        self.resource_table = ResourceTable(0, 4)
+        self.resource_table.setHorizontalHeaderLabels(["Назва", "Канал", "UID району", "Опис"])
         self.resource_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         self.resource_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        self.resource_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self.resource_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        self.resource_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         self.resource_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.resource_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.resource_table.itemSelectionChanged.connect(self.resource_selected)
@@ -546,7 +628,7 @@ class MainWindow(QMainWindow):
         self.resource_table.setRowCount(0); self.rule_resources.clear()
         for row, resource in enumerate(self.resources):
             self.resource_table.insertRow(row)
-            for column, value in enumerate((resource.name, f"@{resource.username}", resource.description)):
+            for column, value in enumerate((resource.name, f"@{resource.username}", resource.location_uid or "Не вказано", resource.description)):
                 item = QTableWidgetItem(value)
                 if column == 0: item.setData(Qt.ItemDataRole.UserRole, resource.id)
                 self.resource_table.setItem(row, column, item)

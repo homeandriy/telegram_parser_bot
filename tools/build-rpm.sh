@@ -12,6 +12,8 @@ rm -rf "$topdir"
 install -d "$topdir/BUILD" "$topdir/BUILDROOT" "$topdir/RPMS" "$topdir/SOURCES" "$topdir/SPECS" "$topdir/SRPMS"
 cp -a "$executable" "$topdir/SOURCES/TelegramAlertMonitor"
 install -m 0644 "$root/config.example.toml" "$topdir/SOURCES/config.example.toml"
+install -m 0644 "$root/deployment/environment.example" "$topdir/SOURCES/environment.example"
+install -m 0644 "$root/deployment/README-deb.md" "$topdir/SOURCES/README-deb.md"
 install -m 0644 "$root/deployment/telegram-alert-monitor.service" "$topdir/SOURCES/telegram-alert-monitor.service"
 install -m 0644 "$root/packaging/telegram-alert-monitor.spec" "$topdir/SPECS/telegram-alert-monitor.spec"
 

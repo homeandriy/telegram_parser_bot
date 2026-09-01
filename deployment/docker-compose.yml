@@ -19,6 +19,8 @@ services:
       context: ..
       dockerfile: deployment/Dockerfile
     command: ["telegram-parser", "--daemon", "--config", "/etc/telegram-alert-monitor/config.toml", "--state-dir", "/etc/telegram-alert-monitor/state"]
+    environment:
+      ALERTS_IN_UA_TOKEN: ${ALERTS_IN_UA_TOKEN:-}
     depends_on:
       postgres:
         condition: service_healthy

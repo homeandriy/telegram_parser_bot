@@ -10,3 +10,4 @@ logs/*
 config.toml
 config/settings.toml
 deployment/config.toml
+deployment/.env

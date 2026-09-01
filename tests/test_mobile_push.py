@@ -5,8 +5,8 @@ import unittest
 
 import httpx
 
-from telegram_parser.mobile_push import MobilePushDispatcher
-from telegram_parser.models import AlertEvent, TelegramMessage
+from telegram_parser.notifications.mobile_push import MobilePushDispatcher
+from telegram_parser.domain.models import AlertEvent, TelegramMessage
 
 
 class FakeStore:

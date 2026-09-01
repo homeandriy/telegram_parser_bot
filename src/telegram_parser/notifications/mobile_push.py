@@ -9,8 +9,8 @@ from typing import Any
 
 import httpx
 
-from .models import AlertEvent
-from .storage import PostgresStore
+from ..domain.models import AlertEvent
+from ..infrastructure.storage import PostgresStore
 
 
 logger = logging.getLogger(__name__)

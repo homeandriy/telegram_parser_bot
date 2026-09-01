@@ -5,12 +5,17 @@ from __future__ import annotations
 from hashlib import sha256
 from datetime import datetime, timezone
 
+import logging
+
 import asyncpg
 
-from .models import AlertEvent, TelegramMessage
+from ..domain.models import AlertEvent, TelegramMessage
+from ..core.runtime import EVENT_RETENTION_LIMIT
 
 
-EVENT_RETENTION_LIMIT = 5_000
+logger = logging.getLogger(__name__)
+
+
 
 
 def event_idempotency_key(message: TelegramMessage, rule_reference: str) -> str:
@@ -81,6 +86,16 @@ class PostgresStore:
                         sent_at TIMESTAMPTZ NOT NULL DEFAULT now(),
                         UNIQUE (event_id, device_id)
                     );
+                    CREATE TABLE IF NOT EXISTS alert_locations (
+                        uid INTEGER PRIMARY KEY,
+                        title TEXT NOT NULL,
+                        location_type TEXT NOT NULL,
+                        oblast_uid INTEGER,
+                        raion_uid INTEGER,
+                        imported_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                    );
+                    CREATE INDEX IF NOT EXISTS alert_locations_oblast_type_idx
+                        ON alert_locations (oblast_uid, location_type, title);
                     INSERT INTO monitor_status (singleton) VALUES (TRUE) ON CONFLICT (singleton) DO NOTHING;
                     """
                 )
@@ -93,6 +108,7 @@ class PostgresStore:
                 ALTER TABLE alert_events ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
                     """
                 )
+                await self._seed_locations(connection)
             finally:
                 await connection.execute("SELECT pg_advisory_unlock(4508080)")
 
@@ -100,6 +116,82 @@ class PostgresStore:
         if self.pool is not None:
             await self.pool.close()
 
+    async def _seed_locations(self, connection: asyncpg.Connection) -> None:
+        existing = await connection.fetchval("SELECT COUNT(*) FROM alert_locations")
+        if int(existing or 0) > 0:
+            return
+        try:
+            from ..alerts.locations import load_bundled_locations
+
+            locations = load_bundled_locations()
+            await connection.executemany(
+                """
+                INSERT INTO alert_locations (uid, title, location_type, oblast_uid, raion_uid)
+                VALUES ($1, $2, $3, $4, $5)
+                ON CONFLICT (uid) DO UPDATE SET
+                    title = EXCLUDED.title,
+                    location_type = EXCLUDED.location_type,
+                    oblast_uid = EXCLUDED.oblast_uid,
+                    raion_uid = EXCLUDED.raion_uid,
+                    imported_at = now()
+                """,
+                [(location.uid, location.title, location.location_type, location.oblast_uid, location.raion_uid) for location in locations],
+            )
+        except Exception:
+            logger.exception("Location UID reference import failed")
+
+    async def list_location_regions(self) -> list[dict[str, object]]:
+        if self.pool is None:
+            raise RuntimeError("Store is not connected")
+        async with self.pool.acquire() as connection:
+            rows = await connection.fetch(
+                """
+                SELECT uid, title, location_type
+                FROM alert_locations
+                WHERE location_type IN ('Область', 'Місто з спеціальним статусом')
+                ORDER BY title
+                """
+            )
+        return [dict(row) for row in rows]
+
+    async def list_location_raions(self, oblast_uid: int) -> list[dict[str, object]]:
+        if self.pool is None:
+            raise RuntimeError("Store is not connected")
+        async with self.pool.acquire() as connection:
+            rows = await connection.fetch(
+                """
+                SELECT uid, title, location_type
+                FROM alert_locations
+                WHERE oblast_uid = $1 AND location_type = 'Район'
+                ORDER BY title
+                """,
+                oblast_uid,
+            )
+        return [dict(row) for row in rows]
+
+    async def get_location(self, uid: int) -> dict[str, object] | None:
+        """Resolve one selected rayon UID and its parent oblast."""
+        if self.pool is None:
+            raise RuntimeError("Store is not connected")
+        async with self.pool.acquire() as connection:
+            row = await connection.fetchrow(
+                """
+                SELECT rayon.uid, rayon.title, rayon.location_type,
+                       oblast.uid AS oblast_uid, oblast.title AS oblast_title
+                FROM alert_locations AS rayon
+                LEFT JOIN alert_locations AS oblast ON oblast.uid = rayon.oblast_uid
+                WHERE rayon.uid = $1
+                """,
+                uid,
+            )
+        if row is None:
+            return None
+        return {
+            "uid": row["uid"],
+            "title": row["title"],
+            "location_type": row["location_type"],
+            "oblast": {"uid": row["oblast_uid"], "title": row["oblast_title"]} if row["oblast_uid"] is not None else None,
+        }
     async def save_message(self, message: TelegramMessage) -> int | None:
         if self.pool is None:
             raise RuntimeError("Store is not connected")

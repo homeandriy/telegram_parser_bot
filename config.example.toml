@@ -1,11 +1,6 @@
 [database]
 dsn = "postgresql://telegram_monitor:change-me@127.0.0.1:5432/telegram_monitor"
 
-[polling]
-normal_seconds = 30
-alert_seconds = 2
-alert_mode_minutes = 180
-
 [telethon]
 # Create these at https://my.telegram.org. Keep them private.
 api_id = 0
@@ -26,13 +21,16 @@ critical_patterns = ["балістика на київ", "київ в укрит
 name = "єРадар"
 username = "eRadarrua"
 source = "public"
+# location_uid = 123  # UID району; область визначається автоматично
 
 [[channels]]
 name = "INSIDER UA"
 username = "insiderUKR"
 source = "public"
+# location_uid = 123  # UID району; область визначається автоматично
 
 [[channels]]
 name = "Vanek Nikolaev"
 username = "vanek_nikolaev"
 source = "public"
+# location_uid = 123  # UID району; область визначається автоматично

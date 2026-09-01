@@ -3,10 +3,10 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import unittest
 
-from telegram_parser.config import ChannelConfig, Settings
-from telegram_parser.models import TelegramMessage
-from telegram_parser.monitor import Monitor
-from telegram_parser.state import Resource
+from telegram_parser.core.config import ChannelConfig, Settings
+from telegram_parser.domain.models import TelegramMessage
+from telegram_parser.application.monitor import Monitor
+from telegram_parser.desktop.state import Resource
 
 
 def settings() -> Settings:

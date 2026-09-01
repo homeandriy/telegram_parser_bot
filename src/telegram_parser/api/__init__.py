@@ -10,11 +10,11 @@ import uvicorn
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from .config import Settings
-from .mobile_push import VALID_SOUNDS, is_valid_expo_push_token
-from .rules import describe_scenarios
-from .state import StateRepository
-from .storage import PostgresStore
+from ..core.config import Settings
+from ..notifications.mobile_push import VALID_SOUNDS, is_valid_expo_push_token
+from ..domain.rules import describe_scenarios
+from ..desktop.state import Resource, StateRepository
+from ..infrastructure.storage import PostgresStore
 
 
 def _timestamp(value: object) -> str | None:
@@ -46,6 +46,18 @@ def _event_payload(event: dict[str, object]) -> dict[str, object]:
         "acknowledged_at": _timestamp(event["delivered_at"]),
     }
 
+
+
+async def _resource_location(store: PostgresStore, resource: Resource) -> dict[str, object] | None:
+    """Resolve the optional rayon UID selected for a channel."""
+    raw_uid = resource.location_uid.strip()
+    if not raw_uid:
+        return None
+    if raw_uid.isdecimal():
+        location = await store.get_location(int(raw_uid))
+        if location is not None:
+            return location
+    return {"uid": raw_uid, "title": None, "location_type": None, "oblast": None}
 
 class MobileDevicePreference(BaseModel):
     enabled: bool = True
@@ -81,7 +93,7 @@ def create_app(
         finally:
             await store.close()
 
-    app = FastAPI(title="Telegram Alert API", version="0.4.0", lifespan=lifespan, docs_url=None, redoc_url=None)
+    app = FastAPI(title="Telegram Alert API", version="0.5.0", lifespan=lifespan, docs_url=None, redoc_url=None)
 
     @app.get("/api/health")
     async def health() -> dict[str, object]:
@@ -115,17 +127,26 @@ def create_app(
     @app.get("/api/rules")
     async def rules() -> dict[str, object]:
         configured_rules = state.load_rules()
-        return {
-            "channels": [
+        channels = []
+        for resource in state.load_resources():
+            channels.append(
                 {
                     "id": resource.id,
                     "name": resource.name,
                     "username": resource.username,
+                    "location": await _resource_location(app.state.store, resource),
                     "rules": [descriptor.__dict__ for descriptor in describe_scenarios(configured_rules.get(resource.id, {}))],
                 }
-                for resource in state.load_resources()
-            ]
-        }
+            )
+        return {"channels": channels}
+
+    @app.get("/api/locations/regions")
+    async def location_regions() -> dict[str, object]:
+        return {"locations": await app.state.store.list_location_regions()}
+
+    @app.get("/api/locations/regions/{region_uid}/raions")
+    async def location_raions(region_uid: int) -> dict[str, object]:
+        return {"locations": await app.state.store.list_location_raions(region_uid)}
 
     @app.post("/api/mobile-devices")
     async def register_mobile_device(registration: MobileDeviceRegistration) -> dict[str, int | bool]:

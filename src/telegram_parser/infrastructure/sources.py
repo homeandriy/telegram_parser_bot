@@ -10,8 +10,8 @@ import httpx
 from bs4 import BeautifulSoup
 from telethon import TelegramClient
 
-from .config import ChannelConfig, Settings
-from .models import TelegramMessage
+from ..core.config import ChannelConfig, Settings
+from ..domain.models import TelegramMessage
 
 
 class TelethonSource:

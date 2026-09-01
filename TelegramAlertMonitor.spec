@@ -5,7 +5,7 @@ a = Analysis(
     ['src/launcher.py'],
     pathex=['src'],
     binaries=[],
-    datas=[('assets', 'assets')],
+    datas=[('assets', 'assets'), ('src/telegram_parser/alerts/data', 'telegram_parser/alerts/data')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

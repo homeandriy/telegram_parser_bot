@@ -1,0 +1,2 @@
+# Keep this file private after copying it to /etc/telegram-alert-monitor/environment.
+ALERTS_IN_UA_TOKEN=

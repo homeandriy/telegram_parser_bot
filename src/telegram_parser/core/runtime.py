@@ -1,0 +1,13 @@
+"""Central runtime configuration for polling, requests, and integrations."""
+
+NORMAL_CHANNEL_POLL_SECONDS = 30
+ACTIVE_ALERT_CHANNEL_POLL_SECONDS = 2
+ALERTS_IN_UA_POLL_SECONDS = 10
+
+CHANNEL_MESSAGE_LIMIT = 10
+ALERTS_IN_UA_TIMEOUT_SECONDS = 10
+OUTBOUND_ACTION_TIMEOUT_SECONDS = 10
+
+ALERTS_IN_UA_ACTIVE_URL = "https://api.alerts.in.ua/v1/alerts/active.json"
+
+EVENT_RETENTION_LIMIT = 5_000

@@ -5,9 +5,9 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from .config import load_settings
-from .monitor import run_daemon
-from .state import StateRepository
+from .core.config import load_settings
+from .application.monitor import run_daemon
+from .desktop.state import StateRepository
 
 
 def main() -> int:
@@ -21,7 +21,7 @@ def main() -> int:
         run_daemon(load_settings(args.config), StateRepository(state_dir))
         return 0
 
-    from .ui import run_ui
+    from .desktop.ui import run_ui
 
     return run_ui(StateRepository(args.state_dir))
 

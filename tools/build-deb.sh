@@ -12,6 +12,8 @@ install -d "$package_root/DEBIAN" "$package_root/opt/telegram-alert-monitor" "$p
 cp -a "$executable/." "$package_root/opt/telegram-alert-monitor/"
 ln -s /opt/telegram-alert-monitor/TelegramAlertMonitor "$package_root/usr/bin/telegram-alert-monitor"
 install -m 0644 "$root/config.example.toml" "$package_root/etc/telegram-alert-monitor/config.example.toml"
+install -m 0644 "$root/deployment/environment.example" "$package_root/etc/telegram-alert-monitor/environment.example"
+install -m 0644 "$root/deployment/README-deb.md" "$package_root/opt/telegram-alert-monitor/README-deb.md"
 install -m 0644 "$root/deployment/telegram-alert-monitor.service" "$package_root/lib/systemd/system/telegram-alert-monitor.service"
 
 cat > "$package_root/DEBIAN/control" <<EOF
@@ -29,7 +31,7 @@ cat > "$package_root/DEBIAN/postinst" <<'EOF'
 set -eu
 getent group telegram-monitor >/dev/null 2>&1 || groupadd --system telegram-monitor
 id -u telegram-monitor >/dev/null 2>&1 || useradd --system --gid telegram-monitor --home-dir /var/lib/telegram-alert-monitor --create-home --shell /usr/sbin/nologin telegram-monitor
-install -d -o telegram-monitor -g telegram-monitor /var/lib/telegram-alert-monitor
+install -d -o telegram-monitor -g telegram-monitor /var/lib/telegram-alert-monitor /var/lib/telegram-alert-monitor/state
 systemctl daemon-reload >/dev/null 2>&1 || true
 EOF
 chmod 0755 "$package_root/DEBIAN/postinst"

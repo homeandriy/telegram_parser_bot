@@ -7,7 +7,10 @@ Wants=network-online.target
 Type=simple
 User=telegram-monitor
 WorkingDirectory=/opt/telegram-alert-monitor
-ExecStart=/usr/bin/telegram-alert-monitor --daemon --config /etc/telegram-alert-monitor/config.toml
+EnvironmentFile=-/etc/telegram-alert-monitor/environment
+StateDirectory=telegram-alert-monitor
+StateDirectoryMode=0750
+ExecStart=/usr/bin/telegram-alert-monitor --daemon --config /etc/telegram-alert-monitor/config.toml --state-dir /var/lib/telegram-alert-monitor/state
 Restart=always
 RestartSec=5
 

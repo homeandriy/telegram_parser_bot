@@ -18,6 +18,7 @@ class Resource:
     sync_type: str
     name: str
     description: str = ""
+    location_uid: str = ""
 
 
 DEFAULT_RESOURCES = (
@@ -48,7 +49,7 @@ class StateRepository:
             self.save_resources(resources)
             return resources
         raw = json.loads(self.resources_path.read_text(encoding="utf-8"))
-        return [Resource(**item) for item in raw]
+        return [Resource(**{key: value for key, value in item.items() if key != "region_name"}) for item in raw]
 
     def save_resources(self, resources: list[Resource]) -> None:
         self.resources_path.write_text(json.dumps([asdict(resource) for resource in resources], ensure_ascii=False, indent=2), encoding="utf-8")

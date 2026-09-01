@@ -6,8 +6,8 @@ import argparse
 import asyncio
 from pathlib import Path
 
-from .config import load_settings
-from .sources import PublicPreviewSource
+from ..core.config import load_settings
+from ..infrastructure.sources import PublicPreviewSource
 
 
 async def collect(config_path: Path, limit: int) -> None:

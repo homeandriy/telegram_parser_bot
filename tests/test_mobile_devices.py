@@ -7,8 +7,8 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from telegram_parser.api import create_app
-from telegram_parser.config import ChannelConfig, Settings
-from telegram_parser.state import Resource, StateRepository
+from telegram_parser.core.config import ChannelConfig, Settings
+from telegram_parser.desktop.state import Resource, StateRepository
 
 
 RESOURCE_ID = "6ed72443-ff82-42f5-b71b-caa3170d3807"
@@ -46,6 +46,24 @@ class FakeStore:
     async def close(self) -> None:
         return None
 
+    async def list_location_regions(self) -> list[dict[str, object]]:
+        return [
+            {"uid": 1, "title": "Київська область", "location_type": "Область"},
+            {"uid": 31, "title": "м. Київ", "location_type": "Місто з спеціальним статусом"},
+        ]
+
+    async def list_location_raions(self, oblast_uid: int) -> list[dict[str, object]]:
+        return [{"uid": 2, "title": "Бучанський район", "location_type": "Район"}] if oblast_uid == 1 else []
+
+    async def get_location(self, uid: int) -> dict[str, object] | None:
+        if uid != 2:
+            return None
+        return {
+            "uid": 2,
+            "title": "Бучанський район",
+            "location_type": "Район",
+            "oblast": {"uid": 1, "title": "Київська область"},
+        }
     async def register_mobile_device(self, token: str, subscriptions: list[tuple[str, str, str]]) -> tuple[int, int]:
         device_id = self.devices.get(token, (len(self.devices) + 1, []))[0]
         self.devices[token] = (device_id, list(subscriptions))
@@ -128,6 +146,38 @@ class MobileDevicesApiTest(unittest.TestCase):
 
         self.assertEqual(422, response.status_code)
 
+    def test_rules_returns_null_location_when_uid_is_not_configured(self) -> None:
+        response = self.client.get("/api/rules")
+
+        self.assertEqual(200, response.status_code)
+        self.assertIsNone(response.json()["channels"][0]["location"])
+
+    def test_rules_resolves_oblast_from_configured_rayon_uid(self) -> None:
+        self.state.save_resources(
+            [Resource(RESOURCE_ID, "https://t.me/eRadarrua", "eRadarrua", "public", "єРадар", location_uid="2")]
+        )
+
+        response = self.client.get("/api/rules")
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(
+            {
+                "uid": 2,
+                "title": "Бучанський район",
+                "location_type": "Район",
+                "oblast": {"uid": 1, "title": "Київська область"},
+            },
+            response.json()["channels"][0]["location"],
+        )
+
+    def test_location_reference_endpoints_return_regions_and_raions(self) -> None:
+        regions = self.client.get("/api/locations/regions")
+        raions = self.client.get("/api/locations/regions/1/raions")
+
+        self.assertEqual(200, regions.status_code)
+        self.assertEqual(1, regions.json()["locations"][0]["uid"])
+        self.assertEqual(200, raions.status_code)
+        self.assertEqual([2], [item["uid"] for item in raions.json()["locations"]])
     def _add_rule(self, rule_id: str, title: str) -> None:
         # State is intentionally reloadable by the endpoint, like production's mounted state directory.
         rules = self.state.load_rules()

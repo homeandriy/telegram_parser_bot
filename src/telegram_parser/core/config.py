@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import os
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
+
+from .runtime import ACTIVE_ALERT_CHANNEL_POLL_SECONDS, NORMAL_CHANNEL_POLL_SECONDS
 
 
 @dataclass(frozen=True)
@@ -12,6 +15,7 @@ class ChannelConfig:
     name: str
     username: str
     source: str
+    location_uid: str = ""
 
 
 @dataclass(frozen=True)
@@ -30,6 +34,7 @@ class Settings:
     escalation_patterns: tuple[str, ...]
     critical_patterns: tuple[str, ...]
     channels: tuple[ChannelConfig, ...]
+    alerts_in_ua_token: str = ""
 
 
 def load_settings(path: Path) -> Settings:
@@ -46,6 +51,7 @@ def load_settings(path: Path) -> Settings:
             name=str(item.get("name", item.get("username", ""))),
             username=str(item["username"]).lstrip("@").removeprefix("https://t.me/s/").removeprefix("https://t.me/"),
             source=str(item.get("source", "public")),
+            location_uid=str(item.get("location_uid", "")).strip(),
         )
         for item in data.get("channels", [])
     )
@@ -58,8 +64,8 @@ def load_settings(path: Path) -> Settings:
         raise ValueError(f"Unknown channel source: {invalid[0]}")
     return Settings(
         database_dsn=str(database["dsn"]),
-        normal_seconds=max(1, int(polling.get("normal_seconds", 30))),
-        alert_seconds=max(2, int(polling.get("alert_seconds", 2))),
+        normal_seconds=NORMAL_CHANNEL_POLL_SECONDS,
+        alert_seconds=ACTIVE_ALERT_CHANNEL_POLL_SECONDS,
         alert_mode_minutes=max(1, int(polling.get("alert_mode_minutes", 180))),
         api_host=str(api.get("host", "127.0.0.1")),
         api_port=max(1, min(65535, int(api.get("port", 8080)))),
@@ -71,4 +77,5 @@ def load_settings(path: Path) -> Settings:
         escalation_patterns=tuple(str(value) for value in rules.get("escalation_patterns", [])),
         critical_patterns=tuple(str(value) for value in rules.get("critical_patterns", [])),
         channels=channels,
+        alerts_in_ua_token=os.environ.get("ALERTS_IN_UA_TOKEN", ""),
     )
