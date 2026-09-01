@@ -18,7 +18,6 @@ class Resource:
     sync_type: str
     name: str
     description: str = ""
-    location_uid: str = ""
 
 
 DEFAULT_RESOURCES = (
@@ -49,7 +48,8 @@ class StateRepository:
             self.save_resources(resources)
             return resources
         raw = json.loads(self.resources_path.read_text(encoding="utf-8"))
-        return [Resource(**{key: value for key, value in item.items() if key != "region_name"}) for item in raw]
+        # Location is a property of a rule, not of a Telegram channel. Ignore legacy channel fields.
+        return [Resource(**{key: value for key, value in item.items() if key not in {"region_name", "location_uid"}}) for item in raw]
 
     def save_resources(self, resources: list[Resource]) -> None:
         self.resources_path.write_text(json.dumps([asdict(resource) for resource in resources], ensure_ascii=False, indent=2), encoding="utf-8")
@@ -60,7 +60,18 @@ class StateRepository:
         return json.loads(self.rules_path.read_text(encoding="utf-8"))
 
     def save_rules(self, rules: dict[str, dict]) -> None:
+        for rule in rules.values():
+            self._normalize_rule_locations(rule, ensure_action=True)
         self.rules_path.write_text(json.dumps(rules, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    @staticmethod
+    def _normalize_rule_locations(node: dict, ensure_action: bool = False) -> None:
+        action = node.setdefault("action", {}) if ensure_action else node.get("action")
+        if isinstance(action, dict):
+            action["location_uid"] = str(action.get("location_uid", "")).strip() or "31"
+        for child in node.get("items", []):
+            if isinstance(child, dict) and (child.get("type") == "group" or child.get("scenario")):
+                StateRepository._normalize_rule_locations(child)
 
     def load_events(self) -> list[dict]:
         if not self.events_path.exists():

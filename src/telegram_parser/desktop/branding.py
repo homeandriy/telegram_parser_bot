@@ -9,4 +9,4 @@ from pathlib import Path
 def asset_path(filename: str) -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys._MEIPASS) / "assets" / filename  # type: ignore[attr-defined]
-    return Path(__file__).resolve().parents[2] / "assets" / filename
+    return Path(__file__).resolve().parents[3] / "assets" / filename

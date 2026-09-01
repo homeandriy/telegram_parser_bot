@@ -194,72 +194,42 @@ class LocationReferenceWorker(QThread):
         except Exception as error:
             self.failed.emit(str(error))
 
-class AddResourceDialog(QDialog):
-    def __init__(self, fetch: Callable[[Resource, int, Callable], None], resource: Resource | None = None, parent: QWidget | None = None) -> None:
+
+class LocationPickerDialog(QDialog):
+    """Choose a rayon from the bundled alerts.in.ua reference."""
+
+    def __init__(self, location_uid: str = "", parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.fetch = fetch
-        self.editing_resource = resource
-        self.tested_resource: Resource | None = resource
-        self.setWindowTitle("Редагувати ресурс" if resource else "Додати ресурс")
-        self.setMinimumWidth(500)
-        self.url = QLineEdit(placeholderText="https://t.me/channel або @channel")
-        self.sync_type = QComboBox()
-        self.sync_type.addItem("Публічний t.me/s/", "public")
-        self.sync_type.addItem("Telegram API / Telethon", "telethon")
-        self.name = QLineEdit(placeholderText="За замовчуванням — назва каналу")
-        self.location_uid = QLineEdit(placeholderText="UID району з довідника alerts.in.ua")
+        self.setWindowTitle("Обрати область і район")
+        self.setMinimumWidth(460)
+        self.location_uid = QLineEdit(location_uid, placeholderText="UID району; порожнє значення означає Київ")
         self.oblast = QComboBox()
         self.raion = QComboBox()
         self.raion.setEnabled(False)
-        self.location_status = QLabel("Завантаження довідника областей і районів…")
-        self.location_status.setWordWrap(True)
-        self.location_worker: LocationReferenceWorker | None = None
+        self.status = QLabel("Завантаження вбудованого довідника…")
+        self.status.setWordWrap(True)
         self.locations: list[AlertLocation] = []
+        self.worker: LocationReferenceWorker | None = None
         self.oblast.currentIndexChanged.connect(self.load_raions)
         self.raion.currentIndexChanged.connect(self.select_raion)
-        self.description = QPlainTextEdit()
-        self.description.setPlaceholderText("Необов’язковий особистий опис")
-        if resource:
-            self.url.setText(resource.url)
-            self.sync_type.setCurrentIndex(max(0, self.sync_type.findData(resource.sync_type)))
-            self.name.setText(resource.name)
-            self.location_uid.setText(resource.location_uid)
-            self.description.setPlainText(resource.description)
-        self.test_button = QPushButton("Тест: завантажити 10 останніх")
-        set_button_icon(self.test_button, QStyle.StandardPixmap.SP_BrowserReload, "Перевірити ресурс та отримати 10 останніх повідомлень")
-        self.test_button.clicked.connect(self.test_resource)
-        self.result = QLabel("Спочатку протестуйте ресурс.")
+        form = QFormLayout()
+        form.addRow("UID району", self.location_uid)
+        form.addRow("Довідник", self.status)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Ok)
-        self.add_button = buttons.button(QDialogButtonBox.StandardButton.Ok)
-        self.add_button.setText("Зберегти зміни" if resource else "Додати ресурс")
-        set_button_icon(self.add_button, QStyle.StandardPixmap.SP_DialogSaveButton if resource else QStyle.StandardPixmap.SP_FileDialogNewFolder, "Зберегти зміни ресурсу" if resource else "Додати перевірений ресурс")
-        set_button_icon(buttons.button(QDialogButtonBox.StandardButton.Cancel), QStyle.StandardPixmap.SP_DialogCancelButton, "Скасувати додавання ресурсу")
-        self.add_button.setEnabled(resource is not None)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
-        form = QFormLayout()
-        form.addRow("URL", self.url)
-        form.addRow("Тип синхронізації", self.sync_type)
-        form.addRow("Назва", self.name)
-        form.addRow("Область", self.oblast)
-        form.addRow("Район", self.raion)
-        form.addRow("UID району alerts.in.ua", self.location_uid)
-        form.addRow("Довідник", self.location_status)
-        form.addRow("Опис", self.description)
         layout = QVBoxLayout(self)
         layout.addLayout(form)
-        layout.addWidget(self.test_button)
-        layout.addWidget(self.result)
         layout.addWidget(buttons)
-        self.load_location_reference()
+        self.load_reference()
 
-    def load_location_reference(self) -> None:
-        self.location_worker = LocationReferenceWorker()
-        self.location_worker.completed.connect(self.location_reference_loaded)
-        self.location_worker.failed.connect(self.location_reference_failed)
-        self.location_worker.start()
+    def load_reference(self) -> None:
+        self.worker = LocationReferenceWorker()
+        self.worker.completed.connect(self.reference_loaded)
+        self.worker.failed.connect(lambda error: self.status.setText(f"Не вдалося завантажити довідник: {error}"))
+        self.worker.start()
 
-    def location_reference_loaded(self, locations: object) -> None:
+    def reference_loaded(self, locations: object) -> None:
         self.locations = list(locations)
         self.oblast.blockSignals(True)
         self.oblast.clear()
@@ -268,19 +238,14 @@ class AddResourceDialog(QDialog):
             if location.location_type in {OBLAST_TYPE, SPECIAL_CITY_TYPE}:
                 self.oblast.addItem(location.title, location.uid)
         self.oblast.blockSignals(False)
-        selected_uid = self.location_uid.text().strip()
-        selected = next((item for item in self.locations if str(item.uid) == selected_uid), None)
+        selected = next((item for item in self.locations if str(item.uid) == self.location_uid.text().strip()), None)
         if selected is not None:
-            oblast_uid = selected.oblast_uid or selected.uid
-            index = self.oblast.findData(oblast_uid)
+            index = self.oblast.findData(selected.oblast_uid or selected.uid)
             if index >= 0:
                 self.oblast.setCurrentIndex(index)
                 self.load_raions()
                 self.raion.setCurrentIndex(max(0, self.raion.findData(selected.uid)))
-        self.location_status.setText("Довідник alerts.in.ua завантажено. Оберіть область, потім район.")
-
-    def location_reference_failed(self, error: str) -> None:
-        self.location_status.setText(f"Не вдалося завантажити довідник: {error}. Вкажіть UID району вручну.")
+        self.status.setText("Оберіть область, потім район. Довідник входить до складу застосунку.")
 
     def load_raions(self) -> None:
         self.raion.blockSignals(True)
@@ -301,10 +266,50 @@ class AddResourceDialog(QDialog):
         self.raion.blockSignals(False)
 
     def select_raion(self) -> None:
-        uid = self.raion.currentData()
-        if uid is not None:
+        if (uid := self.raion.currentData()) is not None:
             self.location_uid.setText(str(uid))
-
+class AddResourceDialog(QDialog):
+    def __init__(self, fetch: Callable[[Resource, int, Callable], None], resource: Resource | None = None, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.fetch = fetch
+        self.editing_resource = resource
+        self.tested_resource: Resource | None = resource
+        self.setWindowTitle("Редагувати ресурс" if resource else "Додати ресурс")
+        self.setMinimumWidth(500)
+        self.url = QLineEdit(placeholderText="https://t.me/channel або @channel")
+        self.sync_type = QComboBox()
+        self.sync_type.addItem("Публічний t.me/s/", "public")
+        self.sync_type.addItem("Telegram API / Telethon", "telethon")
+        self.name = QLineEdit(placeholderText="За замовчуванням — назва каналу")
+        self.description = QPlainTextEdit()
+        self.description.setPlaceholderText("Необов’язковий особистий опис")
+        if resource:
+            self.url.setText(resource.url)
+            self.sync_type.setCurrentIndex(max(0, self.sync_type.findData(resource.sync_type)))
+            self.name.setText(resource.name)
+            self.description.setPlainText(resource.description)
+        self.test_button = QPushButton("Тест: завантажити 10 останніх")
+        set_button_icon(self.test_button, QStyle.StandardPixmap.SP_BrowserReload, "Перевірити ресурс та отримати 10 останніх повідомлень")
+        self.test_button.clicked.connect(self.test_resource)
+        self.result = QLabel("Спочатку протестуйте ресурс.")
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Ok)
+        self.add_button = buttons.button(QDialogButtonBox.StandardButton.Ok)
+        self.add_button.setText("Зберегти зміни" if resource else "Додати ресурс")
+        set_button_icon(self.add_button, QStyle.StandardPixmap.SP_DialogSaveButton if resource else QStyle.StandardPixmap.SP_FileDialogNewFolder, "Зберегти зміни ресурсу" if resource else "Додати перевірений ресурс")
+        set_button_icon(buttons.button(QDialogButtonBox.StandardButton.Cancel), QStyle.StandardPixmap.SP_DialogCancelButton, "Скасувати додавання ресурсу")
+        self.add_button.setEnabled(resource is not None)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        form = QFormLayout()
+        form.addRow("URL", self.url)
+        form.addRow("Тип синхронізації", self.sync_type)
+        form.addRow("Назва", self.name)
+        form.addRow("Опис", self.description)
+        layout = QVBoxLayout(self)
+        layout.addLayout(form)
+        layout.addWidget(self.test_button)
+        layout.addWidget(self.result)
+        layout.addWidget(buttons)
     def resource(self) -> Resource:
         username = normalize_username(self.url.text())
         return Resource(
@@ -314,7 +319,6 @@ class AddResourceDialog(QDialog):
             sync_type=str(self.sync_type.currentData()),
             name=self.name.text().strip() or username,
             description=self.description.toPlainText().strip(),
-            location_uid=self.location_uid.text().strip(),
         )
 
     def test_resource(self) -> None:
@@ -367,17 +371,41 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.rules_tab(), style.standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView), "Правила")
         self.tabs.addTab(self.settings_tab(), style.standardIcon(QStyle.StandardPixmap.SP_FileDialogContentsView), "Налаштування")
         self.tabs.addTab(self.logs_tab(), style.standardIcon(QStyle.StandardPixmap.SP_FileDialogInfoView), "Журнал")
-        self.setCentralWidget(self.tabs)
+        header = QWidget()
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(12, 10, 12, 8)
+        header_icon = QLabel()
+        header_icon.setPixmap(QPixmap(str(asset_path("telegram-alert.png"))).scaled(64, 64, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        header_icon.setToolTip("Telegram Alert Monitor")
+        headline = QLabel("Налаштуй повітряні тривоги під себе")
+        headline.setStyleSheet("font-size: 20px; font-weight: 700;")
+        subtitle = QLabel("Інколи краще мати свій інструмент, чим довірити своє життя комусь іншому")
+        subtitle.setStyleSheet("color: #aeb7c2; font-size: 13px;")
+        copy = QWidget()
+        copy_layout = QVBoxLayout(copy)
+        copy_layout.setContentsMargins(4, 0, 0, 0)
+        copy_layout.setSpacing(2)
+        copy_layout.addWidget(headline)
+        copy_layout.addWidget(subtitle)
+        header_layout.addWidget(header_icon)
+        header_layout.addWidget(copy, 1)
+        central = QWidget()
+        central_layout = QVBoxLayout(central)
+        central_layout.setContentsMargins(0, 0, 0, 0)
+        central_layout.setSpacing(0)
+        central_layout.addWidget(header)
+        central_layout.addWidget(self.tabs, 1)
+        self.setCentralWidget(central)
         self.refresh_resources()
 
     def channels_tab(self) -> QWidget:
         tab = QWidget()
-        self.resource_table = ResourceTable(0, 4)
-        self.resource_table.setHorizontalHeaderLabels(["Назва", "Канал", "UID району", "Опис"])
+        self.resource_table = ResourceTable(0, 3)
+        self.resource_table.setHorizontalHeaderLabels(["Назва", "Канал", "Опис"])
         self.resource_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         self.resource_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.resource_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        self.resource_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        self.resource_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.resource_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.resource_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.resource_table.itemSelectionChanged.connect(self.resource_selected)
@@ -510,19 +538,27 @@ class MainWindow(QMainWindow):
         self.action_url = QLineEdit(placeholderText="https://… (необов’язково)")
         self.action_headers = QPlainTextEdit(placeholderText='{"Authorization": "Bearer …"}')
         self.action_headers.setMaximumHeight(60)
+        self.action_location_uid = QLineEdit("31")
+        choose_location = QPushButton("Обрати область і район…")
+        choose_location.clicked.connect(self.choose_rule_location)
         self.action_body = QPlainTextEdit(placeholderText='{"event": "critical"}')
         self.action_body.setMaximumHeight(60)
         self.tray_action = QCheckBox("Показати повідомлення в треї")
         self.sound_action = QCheckBox("Відтворити звук")
+        copy_rule = QPushButton("Копіювати правило")
+        copy_rule.clicked.connect(self.copy_rule)
         save_action = QPushButton("Зберегти дію")
         set_button_icon(save_action, QStyle.StandardPixmap.SP_DialogSaveButton, "Зберегти дію для вибраної групи")
         save_action.clicked.connect(self.save_action)
         form.addRow("Метод", self.action_type)
         form.addRow("URL", self.action_url)
         form.addRow("Headers (JSON)", self.action_headers)
+        form.addRow("Район UID", self.action_location_uid)
+        form.addRow(choose_location)
         form.addRow("Body (JSON)", self.action_body)
         form.addRow(self.tray_action)
         form.addRow(self.sound_action)
+        form.addRow(copy_rule)
         form.addRow(save_action)
         controls = QGridLayout()
         controls.addWidget(QLabel("Оператор поточної групи:"), 0, 0)
@@ -628,7 +664,7 @@ class MainWindow(QMainWindow):
         self.resource_table.setRowCount(0); self.rule_resources.clear()
         for row, resource in enumerate(self.resources):
             self.resource_table.insertRow(row)
-            for column, value in enumerate((resource.name, f"@{resource.username}", resource.location_uid or "Не вказано", resource.description)):
+            for column, value in enumerate((resource.name, f"@{resource.username}", resource.description)):
                 item = QTableWidgetItem(value)
                 if column == 0: item.setData(Qt.ItemDataRole.UserRole, resource.id)
                 self.resource_table.setItem(row, column, item)
@@ -830,7 +866,7 @@ class MainWindow(QMainWindow):
     def current_rule(self) -> dict:
         resource_id = self.rule_resource_id()
         if resource_id is None: return {"operator": "and", "items": [], "action": {}}
-        return self.rules.setdefault(resource_id, {"operator": "and", "items": [], "action": {"method": "POST", "url": "", "headers": "{}", "body": "{}", "tray": True, "sound": True}})
+        return self.rules.setdefault(resource_id, {"operator": "and", "items": [], "action": self.default_action()})
 
     def load_rule_tree(self, _resource_id: str | None) -> None:
         self.rule_tree.clear(); rule = self.current_rule(); root = self.tree_item(rule, is_root=True); self.rule_tree.addTopLevelItem(root); root.setExpanded(True)
@@ -907,15 +943,45 @@ class MainWindow(QMainWindow):
         self.target_group()["operator"] = self.group_operator.currentData(); self.save_rules(); self.load_rule_tree(self.rule_resource_id())
 
     def save_action(self) -> None:
-        self.target_group()["action"] = {"method": self.action_type.currentText(), "url": self.action_url.text().strip(), "headers": self.action_headers.toPlainText().strip() or "{}", "body": self.action_body.toPlainText().strip() or "{}", "tray": self.tray_action.isChecked(), "sound": self.sound_action.isChecked()}
+        location_uid = self.action_location_uid.text().strip() or "31"
+        self.action_location_uid.setText(location_uid)
+        self.target_group()["action"] = {"method": self.action_type.currentText(), "url": self.action_url.text().strip(), "headers": self.action_headers.toPlainText().strip() or "{}", "body": self.action_body.toPlainText().strip() or "{}", "tray": self.tray_action.isChecked(), "sound": self.sound_action.isChecked(), "location_uid": location_uid}
         self.save_rules(); QMessageBox.information(self, "Збережено", "Дію правила збережено.")
 
+    def choose_rule_location(self) -> None:
+        dialog = LocationPickerDialog(self.action_location_uid.text().strip() or "31", self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.action_location_uid.setText(dialog.location_uid.text().strip() or "31")
+    def copy_rule(self) -> None:
+        source = self.current_rule()
+        choices = [resource.name for resource in self.resources]
+        target_name, ok = QInputDialog.getItem(self, "Копіювати правило", "Канал-призначення", choices, 0, False)
+        if not ok:
+            return
+        target = next(resource for resource in self.resources if resource.name == target_name)
+        copied = json.loads(json.dumps(source))
+        picker = LocationPickerDialog(str(copied.get("action", {}).get("location_uid", "31")) or "31", self)
+        if picker.exec() != QDialog.DialogCode.Accepted:
+            return
+        copied.setdefault("action", {})["location_uid"] = picker.location_uid.text().strip() or "31"
+        terms, ok = QInputDialog.getText(self, "Умови збігу", "Нові фрази через кому (порожньо — скопіювати умови):")
+        if not ok:
+            return
+        if terms.strip():
+            copied["items"] = [{"type": "condition", "mode": "contains", "value": term.strip()} for term in terms.split(",") if term.strip()]
+        if self.rules.get(target.id) == copied:
+            QMessageBox.information(self, "Копіювання", "Ідентичне правило вже існує для цього каналу.")
+            return
+        self.rules[target.id] = copied
+        self.save_rules()
+        self.rule_resources.setCurrentRow(self.resources.index(target))
+        QMessageBox.information(self, "Копіювання", "Правило скопійовано. За потреби відредагуйте умови в конструкторі.")
     def save_rules(self) -> None:
         self.repository.save_rules(self.rules)
 
     @staticmethod
     def default_action() -> dict:
-        return {"method": "POST", "url": "", "headers": "{}", "body": "{}", "tray": True, "sound": True}
+        return {"method": "POST", "url": "", "headers": "{}", "body": "{}", "tray": True, "sound": True, "location_uid": "31"}
 
     def target_group(self) -> dict:
         item = self.rule_tree.currentItem()
@@ -937,7 +1003,7 @@ class MainWindow(QMainWindow):
 
     def load_action(self, group: dict) -> None:
         action = group.get("action", self.default_action())
-        self.action_type.setCurrentText(action.get("method", "POST")); self.action_url.setText(action.get("url", "")); self.action_headers.setPlainText(action.get("headers", "{}")); self.action_body.setPlainText(action.get("body", "{}")); self.tray_action.setChecked(bool(action.get("tray", True))); self.sound_action.setChecked(bool(action.get("sound", True)))
+        self.action_type.setCurrentText(action.get("method", "POST")); self.action_url.setText(action.get("url", "")); self.action_headers.setPlainText(action.get("headers", "{}")); self.action_body.setPlainText(action.get("body", "{}")); self.tray_action.setChecked(bool(action.get("tray", True))); self.sound_action.setChecked(bool(action.get("sound", True))); self.action_location_uid.setText(str(action.get("location_uid", "31")))
 
     def remove_node(self, group: dict, node: dict) -> bool:
         for index, child in enumerate(group.get("items", [])):

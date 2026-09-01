@@ -15,7 +15,6 @@ class ChannelConfig:
     name: str
     username: str
     source: str
-    location_uid: str = ""
 
 
 @dataclass(frozen=True)
@@ -51,7 +50,6 @@ def load_settings(path: Path) -> Settings:
             name=str(item.get("name", item.get("username", ""))),
             username=str(item["username"]).lstrip("@").removeprefix("https://t.me/s/").removeprefix("https://t.me/"),
             source=str(item.get("source", "public")),
-            location_uid=str(item.get("location_uid", "")).strip(),
         )
         for item in data.get("channels", [])
     )

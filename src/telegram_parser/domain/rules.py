@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .models import AlertEvent, TelegramMessage
+from ..core.runtime import DEFAULT_RULE_LOCATION_UID
 
 
 @dataclass(frozen=True)
@@ -20,6 +21,7 @@ class ScenarioMatch:
 class RuleDescriptor:
     id: str
     title: str
+    location_uid: str
 
 
 def evaluate_scenarios(message: TelegramMessage, rule: dict) -> list[ScenarioMatch]:
@@ -54,10 +56,10 @@ def describe_scenarios(rule: dict) -> list[RuleDescriptor]:
     direct_items = [item for item in rule.get("items", []) if not item.get("scenario")]
     scenarios: list[dict] = []
     if direct_items:
-        scenarios.append({"id": "scenario-1", "title": "Сценарій 1"})
+        scenarios.append({"id": "scenario-1", "title": "Сценарій 1", "action": rule.get("action", {})})
     scenarios.extend(item for item in rule.get("items", []) if item.get("scenario"))
     return [
-        RuleDescriptor(str(scenario.get("id", f"scenario-{index}")), str(scenario.get("title", f"Сценарій {index}")))
+        RuleDescriptor(str(scenario.get("id", f"scenario-{index}")), str(scenario.get("title", f"Сценарій {index}")), str(scenario.get("action", rule.get("action", {})).get("location_uid", DEFAULT_RULE_LOCATION_UID)).strip() or DEFAULT_RULE_LOCATION_UID)
         for index, scenario in enumerate(scenarios, start=1)
     ]
 

@@ -3,17 +3,20 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+import json
 from datetime import datetime
 from typing import AsyncIterator, Callable
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from ..core.config import Settings
 from ..notifications.mobile_push import VALID_SOUNDS, is_valid_expo_push_token
 from ..domain.rules import describe_scenarios
-from ..desktop.state import Resource, StateRepository
+from ..desktop.state import StateRepository
+from ..desktop.branding import asset_path
 from ..infrastructure.storage import PostgresStore
 
 
@@ -48,9 +51,9 @@ def _event_payload(event: dict[str, object]) -> dict[str, object]:
 
 
 
-async def _resource_location(store: PostgresStore, resource: Resource) -> dict[str, object] | None:
+async def _rule_location(store: PostgresStore, raw_uid: str) -> dict[str, object] | None:
     """Resolve the optional rayon UID selected for a channel."""
-    raw_uid = resource.location_uid.strip()
+    raw_uid = raw_uid.strip()
     if not raw_uid:
         return None
     if raw_uid.isdecimal():
@@ -58,6 +61,12 @@ async def _resource_location(store: PostgresStore, resource: Resource) -> dict[s
         if location is not None:
             return location
     return {"uid": raw_uid, "title": None, "location_type": None, "oblast": None}
+
+class RuleCopyRequest(BaseModel):
+    source_resource_id: str = Field(min_length=1)
+    target_resource_id: str = Field(min_length=1)
+    location_uid: str = ""
+    match_terms: list[str] | None = None
 
 class MobileDevicePreference(BaseModel):
     enabled: bool = True
@@ -93,15 +102,26 @@ def create_app(
         finally:
             await store.close()
 
-    app = FastAPI(title="Telegram Alert API", version="0.5.0", lifespan=lifespan, docs_url=None, redoc_url=None)
+    app = FastAPI(title="Telegram Alert API", version="0.6.0", lifespan=lifespan, docs_url=None, redoc_url=None)
+
+    @app.get("/api/app_ico", name="app_ico")
+    async def app_ico() -> FileResponse:
+        """Stream the canonical application icon for mobile and desktop clients."""
+        return FileResponse(
+            asset_path("telegram-alert.png"),
+            media_type="image/png",
+            filename="telegram-alert.png",
+            content_disposition_type="attachment",
+        )
 
     @app.get("/api/health")
-    async def health() -> dict[str, object]:
+    async def health(request: Request) -> dict[str, object]:
         status = await app.state.store.status()
         return {
             "last_checked_at": _timestamp(status["last_checked_at"]),
             "last_successful_at": _timestamp(status["last_successful_at"]),
             "pending_events": status["pending_events"],
+            "app_ico": str(request.url_for("app_ico")),
         }
 
     @app.get("/api/events")
@@ -134,8 +154,7 @@ def create_app(
                     "id": resource.id,
                     "name": resource.name,
                     "username": resource.username,
-                    "location": await _resource_location(app.state.store, resource),
-                    "rules": [descriptor.__dict__ for descriptor in describe_scenarios(configured_rules.get(resource.id, {}))],
+                    "rules": [{"id": descriptor.id, "title": descriptor.title, "location": await _rule_location(app.state.store, descriptor.location_uid)} for descriptor in describe_scenarios(configured_rules.get(resource.id, {}))],
                 }
             )
         return {"channels": channels}
@@ -148,6 +167,23 @@ def create_app(
     async def location_raions(region_uid: int) -> dict[str, object]:
         return {"locations": await app.state.store.list_location_raions(region_uid)}
 
+    @app.post("/api/rules/copy")
+    async def copy_rule(request: RuleCopyRequest) -> dict[str, object]:
+        rules = state.load_rules()
+        source = rules.get(request.source_resource_id)
+        if source is None:
+            raise HTTPException(status_code=404, detail="Source rule not found")
+        if request.target_resource_id not in {resource.id for resource in state.load_resources()}:
+            raise HTTPException(status_code=404, detail="Target channel not found")
+        copied = json.loads(json.dumps(source))
+        copied.setdefault("action", {})["location_uid"] = request.location_uid.strip() or "31"
+        if request.match_terms is not None:
+            copied["items"] = [{"type": "condition", "mode": "contains", "value": term.strip()} for term in request.match_terms if term.strip()]
+        if rules.get(request.target_resource_id) == copied:
+            raise HTTPException(status_code=409, detail="Identical rule already exists")
+        rules[request.target_resource_id] = copied
+        state.save_rules(rules)
+        return {"copied": True, "target_resource_id": request.target_resource_id}
     @app.post("/api/mobile-devices")
     async def register_mobile_device(registration: MobileDeviceRegistration) -> dict[str, int | bool]:
         if not is_valid_expo_push_token(registration.expoPushToken):

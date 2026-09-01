@@ -13,7 +13,7 @@ from ..core.config import ChannelConfig, Settings
 from ..notifications.mobile_push import MobilePushDispatcher
 from ..notifications.webhook import WebhookNotifier
 from ..core.runtime import ACTIVE_ALERT_CHANNEL_POLL_SECONDS, ALERTS_IN_UA_POLL_SECONDS, CHANNEL_MESSAGE_LIMIT, NORMAL_CHANNEL_POLL_SECONDS, OUTBOUND_ACTION_TIMEOUT_SECONDS
-from ..domain.rules import evaluate_scenarios
+from ..domain.rules import describe_scenarios, evaluate_scenarios
 from ..infrastructure.sources import PublicPreviewSource, TelethonSource
 from ..desktop.state import Resource, StateRepository
 from ..infrastructure.storage import PostgresStore
@@ -75,7 +75,7 @@ class Monitor:
                         await self.store.record_check(False)
                     else:
                         await self.store.record_check(True)
-                    interval = ACTIVE_ALERT_CHANNEL_POLL_SECONDS if resource.location_uid in self.active_location_uids else NORMAL_CHANNEL_POLL_SECONDS
+                    interval = ACTIVE_ALERT_CHANNEL_POLL_SECONDS if self._rule_location_uids(rules.get(resource.id, {})) & self.active_location_uids else NORMAL_CHANNEL_POLL_SECONDS
                     next_resource_poll[resource.id] = monotonic() + interval
                 next_due = min([next_alert_poll, *next_resource_poll.values()]) if next_resource_poll else next_alert_poll
                 await asyncio.sleep(max(0.1, next_due - monotonic()))
@@ -85,11 +85,14 @@ class Monitor:
     def _resources_and_rules(self) -> tuple[list[Resource], dict[str, dict]]:
         if self.state is None:
             resources = [
-                Resource(channel.username, f"https://t.me/{channel.username}", channel.username, channel.source, channel.name, location_uid=channel.location_uid)
+                Resource(channel.username, f"https://t.me/{channel.username}", channel.username, channel.source, channel.name)
                 for channel in self.settings.channels
             ]
             return resources, {}
         return self.state.load_resources(), self.state.load_rules()
+    @staticmethod
+    def _rule_location_uids(rule: dict) -> frozenset[str]:
+        return frozenset(descriptor.location_uid for descriptor in describe_scenarios(rule))
     async def _sync_channels(self) -> int:
         created = 0
         resources, rules = self._resources_and_rules()

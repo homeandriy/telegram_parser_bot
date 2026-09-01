@@ -23,16 +23,13 @@ critical_patterns = ["балістика на київ", "київ в укрит
 name = "єРадар"
 username = "eRadarrua"
 source = "public"
-# location_uid = 123  # UID району; область визначається автоматично
 
 [[channels]]
 name = "INSIDER UA"
 username = "insiderUKR"
 source = "public"
-# location_uid = 123  # UID району; область визначається автоматично
 
 [[channels]]
 name = "Vanek Nikolaev"
 username = "vanek_nikolaev"
 source = "public"
-# location_uid = 123  # UID району; область визначається автоматично

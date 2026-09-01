@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## v0.6.0 - 2026-09-02
+
+### Added
+
+- Rule-level oblast and rayon selector backed by the bundled alerts.in.ua Location UID reference.
+- `POST /api/rules/copy` and desktop flow to copy a rule to another channel with a different rayon or matching phrases.
+
+### Changed
+
+- Air-raid acceleration is determined by each rule location rather than by channel metadata.
+- Empty incoming rule locations are normalized to Kyiv UID `31` before persistence.
+
+
 ## v0.5.0 - 2026-09-02
 
 ### Added

@@ -146,30 +146,40 @@ class MobileDevicesApiTest(unittest.TestCase):
 
         self.assertEqual(422, response.status_code)
 
-    def test_rules_returns_null_location_when_uid_is_not_configured(self) -> None:
+    def test_rules_defaults_location_to_kyiv_when_uid_is_not_configured(self) -> None:
         response = self.client.get("/api/rules")
 
         self.assertEqual(200, response.status_code)
-        self.assertIsNone(response.json()["channels"][0]["location"])
+        self.assertEqual("31", response.json()["channels"][0]["rules"][0]["location"]["uid"])
 
     def test_rules_resolves_oblast_from_configured_rayon_uid(self) -> None:
-        self.state.save_resources(
-            [Resource(RESOURCE_ID, "https://t.me/eRadarrua", "eRadarrua", "public", "єРадар", location_uid="2")]
-        )
+        rules = self.state.load_rules()
+        rules[RESOURCE_ID]["action"] = {"location_uid": "2"}
+        self.state.save_rules(rules)
 
         response = self.client.get("/api/rules")
 
         self.assertEqual(200, response.status_code)
-        self.assertEqual(
-            {
-                "uid": 2,
-                "title": "Бучанський район",
-                "location_type": "Район",
-                "oblast": {"uid": 1, "title": "Київська область"},
-            },
-            response.json()["channels"][0]["location"],
-        )
+        self.assertEqual(2, response.json()["channels"][0]["rules"][0]["location"]["uid"])
+    def test_copy_rule_normalizes_empty_location_and_rejects_duplicate(self) -> None:
+        target_id = "target-channel"
+        resources = self.state.load_resources()
+        resources.append(Resource(target_id, "https://t.me/target", "target", "public", "Інший канал"))
+        self.state.save_resources(resources)
 
+        payload = {
+            "source_resource_id": RESOURCE_ID,
+            "target_resource_id": target_id,
+            "location_uid": "",
+            "match_terms": ["тривога", "ракета"],
+        }
+        copied = self.client.post("/api/rules/copy", json=payload)
+
+        self.assertEqual(200, copied.status_code)
+        target_rule = self.state.load_rules()[target_id]
+        self.assertEqual("31", target_rule["action"]["location_uid"])
+        self.assertEqual(["тривога", "ракета"], [item["value"] for item in target_rule["items"]])
+        self.assertEqual(409, self.client.post("/api/rules/copy", json=payload).status_code)
     def test_location_reference_endpoints_return_regions_and_raions(self) -> None:
         regions = self.client.get("/api/locations/regions")
         raions = self.client.get("/api/locations/regions/1/raions")
