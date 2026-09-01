@@ -35,6 +35,21 @@ docker compose up -d --build
 Compose піднімає два сервіси: `postgres` із постійним volume та `monitor` daemon. Їхня мережа внутрішня — PostgreSQL не публікує порт на хост.
 Daemon раз на 30 секунд завантажує по 10 останніх повідомлень з кожного ресурсу, виконує сценарії з `state/rules.json` і записує попадання в `state/events.json`. Цей файл показує вкладка «Журнал» у UI на Ubuntu.
 
+## Mobile Alert API
+
+Мобільний клієнт бере доступні канали й правила з `GET /api/rules`, а потім реєструє Expo Push token через `POST /api/mobile-devices`:
+
+```json
+{
+  "expoPushToken": "ExpoPushToken[...]",
+  "preferences": {
+    "resource_id:rule_id": {"enabled": true, "sound": "siren"}
+  }
+}
+```
+
+Ключ налаштування має точно відповідати правилу, яке повертає `/api/rules`. Повторна реєстрація цього token замінює весь список його підписок. Після нового збігу правила daemon надсилає push лише підписаним пристроям; у payload передаються ID події, ID правила та URL оригінального Telegram-повідомлення.
+
 ## Windows EXE
 
 ```powershell

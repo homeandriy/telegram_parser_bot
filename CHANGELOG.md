@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+## v0.4.0 - 2026-09-01
+
+### Added
+
+- Expo Push registration through `POST /api/mobile-devices` with per-rule sound preferences.
+- Durable mobile-device subscriptions and idempotent Expo delivery records for alert events.
+
+### Changed
+
+- New rule matches dispatch mobile pushes only after the alert event is successfully stored.
+
+### Fixed
+
+- Alert-event retention is capped at 5,000 newest events.
+
 ## v0.3.3 - 2026-08-29
 
 ### Fixed

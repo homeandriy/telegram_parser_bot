@@ -61,6 +61,26 @@ class PostgresStore:
                         last_checked_at TIMESTAMPTZ,
                         last_successful_at TIMESTAMPTZ
                     );
+                    CREATE TABLE IF NOT EXISTS mobile_devices (
+                        id BIGSERIAL PRIMARY KEY,
+                        expo_push_token TEXT NOT NULL UNIQUE,
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                    );
+                    CREATE TABLE IF NOT EXISTS mobile_device_subscriptions (
+                        device_id BIGINT NOT NULL REFERENCES mobile_devices(id) ON DELETE CASCADE,
+                        resource_id TEXT NOT NULL,
+                        rule_id TEXT NOT NULL,
+                        sound TEXT NOT NULL CHECK (sound IN ('default', 'siren')),
+                        UNIQUE (device_id, resource_id, rule_id)
+                    );
+                    CREATE TABLE IF NOT EXISTS mobile_alert_deliveries (
+                        event_id BIGINT NOT NULL REFERENCES alert_events(id) ON DELETE CASCADE,
+                        device_id BIGINT NOT NULL REFERENCES mobile_devices(id) ON DELETE CASCADE,
+                        expo_ticket_id TEXT,
+                        sent_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                        UNIQUE (event_id, device_id)
+                    );
                     INSERT INTO monitor_status (singleton) VALUES (TRUE) ON CONFLICT (singleton) DO NOTHING;
                     """
                 )
@@ -143,6 +163,75 @@ class PostgresStore:
                     EVENT_RETENTION_LIMIT,
                 )
             return event_id
+
+    async def register_mobile_device(
+        self,
+        expo_push_token: str,
+        subscriptions: list[tuple[str, str, str]],
+    ) -> tuple[int, int]:
+        """Replace all device subscriptions atomically and return its id and count."""
+        if self.pool is None:
+            raise RuntimeError("Store is not connected")
+        async with self.pool.acquire() as connection, connection.transaction():
+            device_id = await connection.fetchval(
+                """
+                INSERT INTO mobile_devices (expo_push_token)
+                VALUES ($1)
+                ON CONFLICT (expo_push_token) DO UPDATE SET updated_at = now()
+                RETURNING id
+                """,
+                expo_push_token,
+            )
+            await connection.execute("DELETE FROM mobile_device_subscriptions WHERE device_id = $1", device_id)
+            if subscriptions:
+                await connection.executemany(
+                    """
+                    INSERT INTO mobile_device_subscriptions (device_id, resource_id, rule_id, sound)
+                    VALUES ($1, $2, $3, $4)
+                    """,
+                    [(device_id, resource_id, rule_id, sound) for resource_id, rule_id, sound in subscriptions],
+                )
+        return int(device_id), len(subscriptions)
+
+    async def list_mobile_subscriptions(self, event_id: int, resource_id: str, rule_id: str) -> list[dict[str, object]]:
+        """Return subscribed devices that have not already received this event."""
+        if self.pool is None:
+            raise RuntimeError("Store is not connected")
+        async with self.pool.acquire() as connection:
+            rows = await connection.fetch(
+                """
+                SELECT mobile_devices.id AS device_id, mobile_devices.expo_push_token, mobile_device_subscriptions.sound
+                FROM mobile_device_subscriptions
+                INNER JOIN mobile_devices ON mobile_devices.id = mobile_device_subscriptions.device_id
+                LEFT JOIN mobile_alert_deliveries
+                    ON mobile_alert_deliveries.device_id = mobile_devices.id
+                    AND mobile_alert_deliveries.event_id = $1
+                WHERE mobile_device_subscriptions.resource_id = $2
+                    AND mobile_device_subscriptions.rule_id = $3
+                    AND mobile_alert_deliveries.event_id IS NULL
+                """,
+                event_id,
+                resource_id,
+                rule_id,
+            )
+        return [dict(row) for row in rows]
+
+    async def save_mobile_delivery(self, event_id: int, device_id: int, expo_ticket_id: str | None) -> bool:
+        """Persist a successful Expo delivery without duplicating an event/device pair."""
+        if self.pool is None:
+            raise RuntimeError("Store is not connected")
+        async with self.pool.acquire() as connection:
+            result = await connection.execute(
+                """
+                INSERT INTO mobile_alert_deliveries (event_id, device_id, expo_ticket_id)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (event_id, device_id) DO NOTHING
+                """,
+                event_id,
+                device_id,
+                expo_ticket_id,
+            )
+        return result == "INSERT 0 1"
 
     async def mark_delivered(self, event_id: int) -> bool:
         if self.pool is None:

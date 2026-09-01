@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 from .config import ChannelConfig, Settings
+from .mobile_push import MobilePushDispatcher
 from .notifier import WebhookNotifier
 from .rules import evaluate_scenarios
 from .sources import PublicPreviewSource, TelethonSource
@@ -24,6 +25,7 @@ class Monitor:
         self.settings = settings
         self.store = PostgresStore(settings.database_dsn)
         self.notifier = WebhookNotifier(settings.notifier_endpoint, settings.notifier_secret)
+        self.mobile_push = MobilePushDispatcher(self.store)
         self.hot_until: datetime | None = None
         self.state = state
 
@@ -95,6 +97,10 @@ class Monitor:
         event_id = await self.store.save_event(message_id, event, resource.id, resource.name, rule_id, rule_title)
         if event_id is None:
             return
+        try:
+            await self.mobile_push.dispatch(event_id, event, resource.id, resource.name, rule_id, rule_title)
+        except Exception:
+            logger.exception("Mobile Push dispatch failed for event_id=%s", event_id)
         action_result = await self._execute_action(action, event_id, event)
         if self.state:
             self.state.append_event({"resource_id": resource.id, "resource": resource.name, "rule_id": rule_id, "rule_title": rule_title, "matched": list(terms), "message": message.text, "url": message.url, "action": action_result})
