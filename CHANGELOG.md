@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## v0.6.1 - 2026-09-03
+
+### Fixed
+
+- Corrected setuptools package-data configuration so release builds can install the application.
+
 ## v0.6.0 - 2026-09-02
 
 ### Added
