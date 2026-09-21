@@ -6,6 +6,103 @@
         "type": "group",
         "scenario": true,
         "id": "shaheds-kyiv",
+        "title": "Шахеди на Київ",
+        "operator": "and",
+        "items": [
+          {
+            "type": "condition",
+            "mode": "contains",
+            "value": "🛵"
+          },
+          {
+            "type": "condition",
+            "mode": "contains",
+            "value": "Троя"
+          }
+        ],
+        "action": {
+          "method": "POST",
+          "url": "",
+          "headers": "{}",
+          "body": "{}",
+          "tray": true,
+          "sound": true,
+          "location_uid": "31"
+        }
+      },
+      {
+        "type": "group",
+        "scenario": true,
+        "id": "ballistics-kyiv",
+        "title": "Балістика на Київ",
+        "operator": "or",
+        "items": [
+          {
+            "type": "condition",
+            "mode": "contains",
+            "value": "Кількісна балістика"
+          },
+          {
+            "type": "group",
+            "operator": "and",
+            "items": [
+              {
+                "type": "condition",
+                "mode": "contains",
+                "value": "Балістика"
+              },
+              {
+                "type": "condition",
+                "mode": "contains",
+                "value": "Київ"
+              }
+            ],
+            "action": {
+              "location_uid": "31"
+            }
+          },
+          {
+            "type": "group",
+            "operator": "and",
+            "items": [
+              {
+                "type": "condition",
+                "mode": "contains",
+                "value": "балістики"
+              },
+              {
+                "type": "condition",
+                "mode": "contains",
+                "value": "Київ"
+              }
+            ],
+            "action": {
+              "location_uid": "31"
+            }
+          }
+        ],
+        "action": {
+          "method": "POST",
+          "url": "",
+          "headers": "{}",
+          "body": "{}",
+          "tray": true,
+          "sound": true,
+          "location_uid": "31"
+        }
+      }
+    ],
+    "action": {
+      "location_uid": "31"
+    }
+  },
+  "6ed72443-ff82-42f5-b71b-caa3170d3807": {
+    "operator": "or",
+    "items": [
+      {
+        "type": "group",
+        "scenario": true,
+        "id": "shaheds-kyiv",
         "title": "Шахеди: Троя / Троєщина",
         "operator": "or",
         "items": [
@@ -196,7 +293,7 @@
                       {
                         "type": "condition",
                         "mode": "contains",
-                                "value": "Київщин"
+                        "value": "Київщин"
                       },
                       {
                         "type": "condition",
@@ -305,103 +402,6 @@
             "type": "condition",
             "mode": "not_contains",
             "value": "завтра"
-          }
-        ],
-        "action": {
-          "method": "POST",
-          "url": "",
-          "headers": "{}",
-          "body": "{}",
-          "tray": true,
-          "sound": true,
-          "location_uid": "31"
-        }
-      }
-    ],
-    "action": {
-      "location_uid": "31"
-    }
-  },
-  "6ed72443-ff82-42f5-b71b-caa3170d3807": {
-    "operator": "or",
-    "items": [
-      {
-        "type": "group",
-        "scenario": true,
-        "id": "shaheds-kyiv",
-        "title": "Шахеди на Київ",
-        "operator": "and",
-        "items": [
-          {
-            "type": "condition",
-            "mode": "contains",
-            "value": "🛵"
-          },
-          {
-            "type": "condition",
-            "mode": "contains",
-            "value": "Троя"
-          }
-        ],
-        "action": {
-          "method": "POST",
-          "url": "",
-          "headers": "{}",
-          "body": "{}",
-          "tray": true,
-          "sound": true,
-          "location_uid": "31"
-        }
-      },
-      {
-        "type": "group",
-        "scenario": true,
-        "id": "ballistics-kyiv",
-        "title": "Балістика на Київ",
-        "operator": "or",
-        "items": [
-          {
-            "type": "condition",
-            "mode": "contains",
-            "value": "Кількісна балістика"
-          },
-          {
-            "type": "group",
-            "operator": "and",
-            "items": [
-              {
-                "type": "condition",
-                "mode": "contains",
-                "value": "Балістика"
-              },
-              {
-                "type": "condition",
-                "mode": "contains",
-                "value": "Київ"
-              }
-            ],
-            "action": {
-              "location_uid": "31"
-            }
-          },
-          {
-            "type": "group",
-            "operator": "and",
-            "items": [
-              {
-                "type": "condition",
-                "mode": "contains",
-                "value": "балістики"
-              },
-              {
-                "type": "condition",
-                "mode": "contains",
-                "value": "Київ"
-              }
-            ],
-            "action": {
-              "location_uid": "31"
-            }
           }
         ],
         "action": {

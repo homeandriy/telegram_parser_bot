@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## v0.6.3 - 2026-09-21
+
+### Fixed
+
+- Apply the refined Троя/Троєщина and rocket/ballistic scenarios to єРадар only; restore the existing INSIDER UA rules.
+
 ## v0.6.2 - 2026-09-21
 
 ### Added
