@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 
 from .models import AlertEvent, TelegramMessage
 from ..core.runtime import DEFAULT_RULE_LOCATION_UID
@@ -68,8 +69,12 @@ def match_node(text: str, node: dict) -> tuple[bool, list[str]]:
     normalized = text.casefold()
     if node.get("type") == "condition":
         value = str(node.get("value", "")).strip()
-        contains = value.casefold() in normalized
-        result = contains if node.get("mode") == "contains" else not contains
+        mode = node.get("mode", "contains")
+        if mode == "contains_word":
+            contains = re.search(rf"(?<!\w){re.escape(value.casefold())}(?!\w)", normalized) is not None
+        else:
+            contains = value.casefold() in normalized
+        result = not contains if mode == "not_contains" else contains
         return result, [value] if result and value else []
     results = [match_node(text, child) for child in node.get("items", [])]
     if not results:

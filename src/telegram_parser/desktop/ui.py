@@ -509,6 +509,9 @@ class MainWindow(QMainWindow):
         add_not = QPushButton("Додати «не містить»")
         set_button_icon(add_not, QStyle.StandardPixmap.SP_FileDialogNewFolder, "Додати умову «повідомлення не містить»")
         add_not.clicked.connect(lambda: self.add_condition("not_contains"))
+        add_word = QPushButton("Додати «ціле слово»")
+        set_button_icon(add_word, QStyle.StandardPixmap.SP_FileDialogNewFolder, "Додати умову зі збігом цілого слова")
+        add_word.clicked.connect(lambda: self.add_condition("contains_word"))
         add_group = QPushButton("Відкрити вкладену групу ( )")
         set_button_icon(add_group, QStyle.StandardPixmap.SP_DirOpenIcon, "Додати вкладену групу умов")
         add_group.clicked.connect(self.add_group)
@@ -567,6 +570,7 @@ class MainWindow(QMainWindow):
         controls.addWidget(add_not, 1, 1)
         controls.addWidget(add_group, 2, 0, 1, 2)
         controls.addWidget(add_scenario, 3, 0, 1, 2)
+        controls.addWidget(add_word, 3, 2)
         controls.addWidget(edit_condition, 4, 0)
         controls.addWidget(remove, 4, 1)
         controls.addWidget(validate, 5, 0)
@@ -875,7 +879,12 @@ class MainWindow(QMainWindow):
 
     def tree_item(self, node: dict, is_root: bool = False) -> QTreeWidgetItem:
         if node.get("type") == "condition":
-            item = QTreeWidgetItem([f"Повідомлення {'містить' if node['mode'] == 'contains' else 'не містить'}: {node['value']}", ""])
+            labels = {
+                "contains": "містить",
+                "not_contains": "не містить",
+                "contains_word": "містить ціле слово",
+            }
+            item = QTreeWidgetItem([f"Повідомлення {labels.get(node.get('mode'), 'містить')}: {node['value']}", ""])
             item.setData(0, Qt.ItemDataRole.UserRole, node)
             return item
         title = "Сценарії каналу" if is_root else ("Окремий сценарій" if node.get("scenario") else "( вкладена група )")

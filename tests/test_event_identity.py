@@ -43,6 +43,31 @@ class EventIdentityTest(unittest.TestCase):
         self.assertEqual(["shaheds-kyiv"], [item.id for item in describe_scenarios(rule)])
         self.assertEqual("shaheds-kyiv", evaluate_scenarios(message, rule)[0].rule_id)
 
+    def test_shahed_rule_matches_troia_or_troieshchyna_without_matching_troiandy(self) -> None:
+        target = {
+            "operator": "or",
+            "items": [
+                {"type": "condition", "mode": "contains_word", "value": "Троя"},
+                {"type": "condition", "mode": "contains", "value": "Троєщин"},
+            ],
+        }
+        rule = {
+            "items": [{
+                "scenario": True,
+                "id": "shaheds-kyiv",
+                "title": "Шахеди: Троя / Троєщина",
+                "operator": "and",
+                "items": [
+                    {"type": "condition", "mode": "contains", "value": "🛵"},
+                    target,
+                ],
+            }],
+        }
+
+        self.assertEqual(["shaheds-kyiv"], [match.rule_id for match in evaluate_scenarios(TelegramMessage("public", "radar", "1", "🛵 Воскресенка/Троя - укриття", None, ""), rule)])
+        self.assertEqual(["shaheds-kyiv"], [match.rule_id for match in evaluate_scenarios(TelegramMessage("public", "radar", "2", "🛵 над Троєщиною", None, ""), rule)])
+        self.assertEqual([], evaluate_scenarios(TelegramMessage("public", "radar", "3", "🛵 Троянди у продажу", None, ""), rule))
+
     def test_ballistics_rule_matches_each_requested_variant(self) -> None:
         rule = {
             "items": [{
@@ -66,3 +91,30 @@ class EventIdentityTest(unittest.TestCase):
         for index, text in enumerate(("Кількісна балістика", "Балістика на Київ", "Пуск балістики у Київ")):
             message = TelegramMessage("public", "radar", str(index), text, datetime.now(timezone.utc), "https://t.me/radar/42")
             self.assertEqual(["ballistics-kyiv"], [match.rule_id for match in evaluate_scenarios(message, rule)])
+
+    def test_rocket_rule_matches_live_alerts_and_rejects_summaries(self) -> None:
+        rule = {
+            "items": [{
+                "scenario": True,
+                "id": "ballistics-kyiv",
+                "title": "Ракети / балістика на Київ",
+                "operator": "and",
+                "items": [
+                    {"operator": "or", "items": [
+                        {"type": "condition", "mode": "contains", "value": "Ракета на Київ"},
+                        {"type": "condition", "mode": "contains", "value": "Ракетна небезпека Київ"},
+                        {"operator": "and", "items": [
+                            {"type": "condition", "mode": "contains", "value": "Балістика"},
+                            {"type": "condition", "mode": "contains", "value": "Київщин"},
+                        ]},
+                    ]},
+                    {"type": "condition", "mode": "not_contains", "value": "Відбій"},
+                    {"type": "condition", "mode": "not_contains", "value": "фальш-ціль"},
+                    {"type": "condition", "mode": "not_contains", "value": "ЗНИЩЕНО"},
+                ],
+            }],
+        }
+        for index, text in enumerate(("📡 Ракета на Київ", "Ракетна небезпека Київ. Укриття!", "Балістика в напрямку Київщини")):
+            message = TelegramMessage("public", "radar", str(index), text, None, "")
+            self.assertEqual(["ballistics-kyiv"], [match.rule_id for match in evaluate_scenarios(message, rule)])
+        self.assertEqual([], evaluate_scenarios(TelegramMessage("public", "radar", "4", "Балістика (фальш-ціль) на Київ", None, ""), rule))

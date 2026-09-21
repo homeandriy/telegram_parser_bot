@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## v0.6.2 - 2026-09-21
+
+### Added
+
+- Whole-word matching for alert-rule conditions, available from the desktop rule editor.
+
+### Changed
+
+- єРадар scenarios now distinguish Shahed signals for Троя/Троєщина from live rocket or ballistic threats to Kyiv and exclude recalls, summaries, and forecasts.
+
 ## v0.6.1 - 2026-09-03
 
 ### Fixed

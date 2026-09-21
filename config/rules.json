@@ -6,18 +6,89 @@
         "type": "group",
         "scenario": true,
         "id": "shaheds-kyiv",
-        "title": "Шахеди на Київ",
-        "operator": "and",
+        "title": "Шахеди: Троя / Троєщина",
+        "operator": "or",
         "items": [
           {
-            "type": "condition",
-            "mode": "contains",
-            "value": "🛵"
+            "type": "group",
+            "operator": "and",
+            "items": [
+              {
+                "type": "condition",
+                "mode": "contains",
+                "value": "🛵"
+              },
+              {
+                "type": "group",
+                "operator": "or",
+                "items": [
+                  {
+                    "type": "condition",
+                    "mode": "contains_word",
+                    "value": "Троя"
+                  },
+                  {
+                    "type": "condition",
+                    "mode": "contains",
+                    "value": "Троєщин"
+                  }
+                ]
+              }
+            ]
           },
           {
-            "type": "condition",
-            "mode": "contains",
-            "value": "Троя"
+            "type": "group",
+            "operator": "and",
+            "items": [
+              {
+                "type": "condition",
+                "mode": "contains",
+                "value": "Шахед"
+              },
+              {
+                "type": "group",
+                "operator": "or",
+                "items": [
+                  {
+                    "type": "condition",
+                    "mode": "contains_word",
+                    "value": "Троя"
+                  },
+                  {
+                    "type": "condition",
+                    "mode": "contains",
+                    "value": "Троєщин"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "group",
+            "operator": "and",
+            "items": [
+              {
+                "type": "condition",
+                "mode": "contains",
+                "value": "БПЛА"
+              },
+              {
+                "type": "group",
+                "operator": "or",
+                "items": [
+                  {
+                    "type": "condition",
+                    "mode": "contains_word",
+                    "value": "Троя"
+                  },
+                  {
+                    "type": "condition",
+                    "mode": "contains",
+                    "value": "Троєщин"
+                  }
+                ]
+              }
+            ]
           }
         ],
         "action": {
@@ -34,51 +105,206 @@
         "type": "group",
         "scenario": true,
         "id": "ballistics-kyiv",
-        "title": "Балістика на Київ",
-        "operator": "or",
+        "title": "Ракети / балістика на Київ",
+        "operator": "and",
         "items": [
           {
+            "type": "group",
+            "operator": "or",
+            "items": [
+              {
+                "type": "condition",
+                "mode": "contains",
+                "value": "Кількісна балістика"
+              },
+              {
+                "type": "condition",
+                "mode": "contains",
+                "value": "Ракета на Київ"
+              },
+              {
+                "type": "condition",
+                "mode": "contains",
+                "value": "Ракети на Київ"
+              },
+              {
+                "type": "group",
+                "operator": "and",
+                "items": [
+                  {
+                    "type": "condition",
+                    "mode": "contains",
+                    "value": "група ракет"
+                  },
+                  {
+                    "type": "condition",
+                    "mode": "contains",
+                    "value": "на Київ"
+                  }
+                ]
+              },
+              {
+                "type": "group",
+                "operator": "and",
+                "items": [
+                  {
+                    "type": "condition",
+                    "mode": "contains",
+                    "value": "Ракетна небезпека"
+                  },
+                  {
+                    "type": "condition",
+                    "mode": "contains",
+                    "value": "Київ"
+                  }
+                ]
+              },
+              {
+                "type": "group",
+                "operator": "and",
+                "items": [
+                  {
+                    "type": "condition",
+                    "mode": "contains",
+                    "value": "Загроза балістики"
+                  },
+                  {
+                    "type": "condition",
+                    "mode": "contains",
+                    "value": "Київ"
+                  }
+                ]
+              },
+              {
+                "type": "group",
+                "operator": "and",
+                "items": [
+                  {
+                    "type": "condition",
+                    "mode": "contains",
+                    "value": "Балістика"
+                  },
+                  {
+                    "type": "group",
+                    "operator": "or",
+                    "items": [
+                      {
+                        "type": "condition",
+                        "mode": "contains",
+                        "value": "на Київ"
+                      },
+                      {
+                        "type": "condition",
+                        "mode": "contains",
+                                "value": "Київщин"
+                      },
+                      {
+                        "type": "condition",
+                        "mode": "contains",
+                        "value": "курс Київ"
+                      },
+                      {
+                        "type": "condition",
+                        "mode": "contains",
+                        "value": "в напрямку Київ"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "group",
+                "operator": "and",
+                "items": [
+                  {
+                    "type": "condition",
+                    "mode": "contains",
+                    "value": "ракети рухаються"
+                  },
+                  {
+                    "type": "condition",
+                    "mode": "contains",
+                    "value": "Київщин"
+                  }
+                ]
+              },
+              {
+                "type": "group",
+                "operator": "and",
+                "items": [
+                  {
+                    "type": "condition",
+                    "mode": "contains",
+                    "value": "ракети в повітрі"
+                  },
+                  {
+                    "type": "condition",
+                    "mode": "contains",
+                    "value": "Київщин"
+                  }
+                ]
+              }
+            ]
+          },
+          {
             "type": "condition",
-            "mode": "contains",
-            "value": "Кількісна балістика"
+            "mode": "not_contains",
+            "value": "Відбій"
           },
           {
-            "type": "group",
-            "operator": "and",
-            "items": [
-              {
-                "type": "condition",
-                "mode": "contains",
-                "value": "Балістика"
-              },
-              {
-                "type": "condition",
-                "mode": "contains",
-                "value": "Київ"
-              }
-            ],
-            "action": {
-              "location_uid": "31"
-            }
+            "type": "condition",
+            "mode": "not_contains",
+            "value": "фальш-ціль"
           },
           {
-            "type": "group",
-            "operator": "and",
-            "items": [
-              {
-                "type": "condition",
-                "mode": "contains",
-                "value": "балістики"
-              },
-              {
-                "type": "condition",
-                "mode": "contains",
-                "value": "Київ"
-              }
-            ],
-            "action": {
-              "location_uid": "31"
-            }
+            "type": "condition",
+            "mode": "not_contains",
+            "value": "ЗНИЩЕНО"
+          },
+          {
+            "type": "condition",
+            "mode": "not_contains",
+            "value": "ЗБИТО"
+          },
+          {
+            "type": "condition",
+            "mode": "not_contains",
+            "value": "ПОДАВЛЕНО"
+          },
+          {
+            "type": "condition",
+            "mode": "not_contains",
+            "value": "після удару"
+          },
+          {
+            "type": "condition",
+            "mode": "not_contains",
+            "value": "постраждал"
+          },
+          {
+            "type": "condition",
+            "mode": "not_contains",
+            "value": "загину"
+          },
+          {
+            "type": "condition",
+            "mode": "not_contains",
+            "value": "станом на"
+          },
+          {
+            "type": "condition",
+            "mode": "not_contains",
+            "value": "найближч"
+          },
+          {
+            "type": "condition",
+            "mode": "not_contains",
+            "value": "наступн"
+          },
+          {
+            "type": "condition",
+            "mode": "not_contains",
+            "value": "завтра"
           }
         ],
         "action": {
