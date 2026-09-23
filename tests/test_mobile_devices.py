@@ -188,6 +188,34 @@ class MobileDevicesApiTest(unittest.TestCase):
         self.assertEqual([], matching["terms"])
         self.assertEqual([], matching["excluded_terms"])
 
+    def test_rules_preserves_nested_rule_logic_as_readable_templates(self) -> None:
+        rules = self.state.load_rules()
+        rules[RESOURCE_ID]["items"][0].update(
+            {
+                "operator": "or",
+                "items": [
+                    {
+                        "operator": "and",
+                        "items": [
+                            {"type": "condition", "mode": "contains", "value": "🛵"},
+                            {
+                                "operator": "or",
+                                "items": [
+                                    {"type": "condition", "mode": "contains_word", "value": "Троя"},
+                                    {"type": "condition", "mode": "contains", "value": "Троєщин"},
+                                ],
+                            },
+                        ],
+                    }
+                ],
+            }
+        )
+        self.state.save_rules(rules)
+
+        response = self.client.get("/api/rules")
+
+        self.assertEqual(["(🛵 І (Троя АБО Троєщин))"], response.json()["channels"][0]["rules"][0]["matching"]["terms"])
+
     def test_rules_endpoint_is_documented_in_openapi(self) -> None:
         schema = self.client.get("/openapi.json").json()
 

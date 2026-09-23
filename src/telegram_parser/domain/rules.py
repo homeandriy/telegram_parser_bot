@@ -68,19 +68,28 @@ def describe_scenarios(rule: dict) -> list[RuleDescriptor]:
             title=str(scenario.get("title", f"Сценарій {index}")),
             location_uid=str(scenario.get("action", rule.get("action", {})).get("location_uid", DEFAULT_RULE_LOCATION_UID)).strip() or DEFAULT_RULE_LOCATION_UID,
             matching_mode="all" if scenario.get("operator", "and") == "and" else "any",
-            terms=_scenario_terms(scenario, "positive"),
+            terms=_scenario_terms(scenario),
             excluded_terms=_scenario_terms(scenario, "excluded"),
         )
         for index, scenario in enumerate(scenarios, start=1)
     ]
 
 
-def _scenario_terms(node: dict, category: str) -> tuple[str, ...]:
-    """Collect the actual configured condition values without changing matching behavior."""
+def _scenario_terms(node: dict, category: str = "positive") -> tuple[str, ...]:
+    """Collect configured terms without changing matching behavior."""
+    if category == "positive":
+        operator = node.get("operator", "and")
+        return tuple(
+            expression
+            for child in node.get("items", [])
+            if isinstance(child, dict)
+            if (expression := _positive_expression(child, operator)) is not None
+        )
+
     if node.get("type") == "condition":
         value = str(node.get("value", "")).strip()
         is_excluded = node.get("mode") == "not_contains"
-        if not value or (category == "excluded") != is_excluded:
+        if not value or not is_excluded:
             return ()
         return (value,)
 
@@ -91,6 +100,26 @@ def _scenario_terms(node: dict, category: str) -> tuple[str, ...]:
                 if value not in terms:
                     terms.append(value)
     return tuple(terms)
+
+
+def _positive_expression(node: dict, parent_operator: str | None = None) -> str | None:
+    if node.get("type") == "condition":
+        value = str(node.get("value", "")).strip()
+        return value if value and node.get("mode") != "not_contains" else None
+
+    operator = node.get("operator", "and")
+    expressions = [
+        expression
+        for child in node.get("items", [])
+        if isinstance(child, dict)
+        if (expression := _positive_expression(child, operator)) is not None
+    ]
+    if not expressions:
+        return None
+    expression = (" І " if operator == "and" else " АБО ").join(expressions)
+    if len(expressions) > 1 and parent_operator is not None and operator != parent_operator:
+        return f"({expression})"
+    return expression
 
 
 def match_node(text: str, node: dict) -> tuple[bool, list[str]]:

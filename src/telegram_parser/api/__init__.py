@@ -135,7 +135,7 @@ def create_app(
         finally:
             await store.close()
 
-    app = FastAPI(title="Telegram Alert API", version="0.7.0", lifespan=lifespan, docs_url=None, redoc_url=None)
+    app = FastAPI(title="Telegram Alert API", version="0.7.1", lifespan=lifespan, docs_url=None, redoc_url=None)
 
     @app.get("/api/app_ico", name="app_ico")
     async def app_ico() -> FileResponse:

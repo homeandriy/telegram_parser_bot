@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## v0.7.1 - 2026-09-23
+
+### Fixed
+
+- Preserve nested `and/or` rule logic in `/api/rules` as readable matching templates instead of flattening alternatives into misleading term lists.
+
 ## v0.7.0 - 2026-09-23
 
 ### Added
