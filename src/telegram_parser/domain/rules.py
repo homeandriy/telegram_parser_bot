@@ -23,6 +23,9 @@ class RuleDescriptor:
     id: str
     title: str
     location_uid: str
+    matching_mode: str
+    terms: tuple[str, ...]
+    excluded_terms: tuple[str, ...]
 
 
 def evaluate_scenarios(message: TelegramMessage, rule: dict) -> list[ScenarioMatch]:
@@ -60,9 +63,34 @@ def describe_scenarios(rule: dict) -> list[RuleDescriptor]:
         scenarios.append({"id": "scenario-1", "title": "Сценарій 1", "action": rule.get("action", {})})
     scenarios.extend(item for item in rule.get("items", []) if item.get("scenario"))
     return [
-        RuleDescriptor(str(scenario.get("id", f"scenario-{index}")), str(scenario.get("title", f"Сценарій {index}")), str(scenario.get("action", rule.get("action", {})).get("location_uid", DEFAULT_RULE_LOCATION_UID)).strip() or DEFAULT_RULE_LOCATION_UID)
+        RuleDescriptor(
+            id=str(scenario.get("id", f"scenario-{index}")),
+            title=str(scenario.get("title", f"Сценарій {index}")),
+            location_uid=str(scenario.get("action", rule.get("action", {})).get("location_uid", DEFAULT_RULE_LOCATION_UID)).strip() or DEFAULT_RULE_LOCATION_UID,
+            matching_mode="all" if scenario.get("operator", "and") == "and" else "any",
+            terms=_scenario_terms(scenario, "positive"),
+            excluded_terms=_scenario_terms(scenario, "excluded"),
+        )
         for index, scenario in enumerate(scenarios, start=1)
     ]
+
+
+def _scenario_terms(node: dict, category: str) -> tuple[str, ...]:
+    """Collect the actual configured condition values without changing matching behavior."""
+    if node.get("type") == "condition":
+        value = str(node.get("value", "")).strip()
+        is_excluded = node.get("mode") == "not_contains"
+        if not value or (category == "excluded") != is_excluded:
+            return ()
+        return (value,)
+
+    terms: list[str] = []
+    for child in node.get("items", []):
+        if isinstance(child, dict):
+            for value in _scenario_terms(child, category):
+                if value not in terms:
+                    terms.append(value)
+    return tuple(terms)
 
 
 def match_node(text: str, node: dict) -> tuple[bool, list[str]]:

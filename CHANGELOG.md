@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## v0.7.0 - 2026-09-23
+
+### Added
+
+- `GET /api/rules` now exposes each rule's configured search terms, exclusions, matching mode and a compatibility `match_terms` field for mobile clients.
+
 ## v0.6.3 - 2026-09-21
 
 ### Fixed

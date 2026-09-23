@@ -152,6 +152,48 @@ class MobileDevicesApiTest(unittest.TestCase):
         self.assertEqual(200, response.status_code)
         self.assertEqual("31", response.json()["channels"][0]["rules"][0]["location"]["uid"])
 
+    def test_rules_exposes_actual_matching_configuration_without_secrets(self) -> None:
+        rules = self.state.load_rules()
+        rules[RESOURCE_ID]["items"][0].update(
+            {
+                "operator": "or",
+                "items": [
+                    {"type": "condition", "mode": "contains", "value": "балістика"},
+                    {"type": "condition", "mode": "contains_word", "value": "ракета"},
+                    {"type": "condition", "mode": "not_contains", "value": "навчальна тривога"},
+                ],
+            }
+        )
+        self.state.save_rules(rules)
+
+        response = self.client.get("/api/rules")
+
+        self.assertEqual(200, response.status_code)
+        rule = response.json()["channels"][0]["rules"][0]
+        self.assertEqual(RULE_ID, rule["id"])
+        self.assertEqual("Балістика на Київ", rule["title"])
+        self.assertIn("location", rule)
+        self.assertEqual("any", rule["matching"]["mode"])
+        self.assertEqual(["балістика", "ракета"], rule["matching"]["terms"])
+        self.assertEqual(["навчальна тривога"], rule["matching"]["excluded_terms"])
+        self.assertFalse(rule["matching"]["case_sensitive"])
+        self.assertEqual(rule["matching"]["terms"], rule["match_terms"])
+        self.assertNotIn(TOKEN, str(response.json()))
+
+    def test_rules_without_conditions_returns_empty_matching_arrays(self) -> None:
+        response = self.client.get("/api/rules")
+
+        self.assertEqual(200, response.status_code)
+        matching = response.json()["channels"][0]["rules"][0]["matching"]
+        self.assertEqual([], matching["terms"])
+        self.assertEqual([], matching["excluded_terms"])
+
+    def test_rules_endpoint_is_documented_in_openapi(self) -> None:
+        schema = self.client.get("/openapi.json").json()
+
+        response_schema = schema["paths"]["/api/rules"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
+        self.assertEqual("#/components/schemas/RulesResponse", response_schema["$ref"])
+
     def test_rules_resolves_oblast_from_configured_rayon_uid(self) -> None:
         rules = self.state.load_rules()
         rules[RESOURCE_ID]["action"] = {"location_uid": "2"}

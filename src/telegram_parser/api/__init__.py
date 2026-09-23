@@ -5,7 +5,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 import json
 from datetime import datetime
-from typing import AsyncIterator, Callable
+from typing import AsyncIterator, Callable, Literal
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -78,6 +78,39 @@ class MobileDeviceRegistration(BaseModel):
     preferences: dict[str, MobileDevicePreference]
 
 
+class LocationResponse(BaseModel):
+    uid: int | str
+    title: str | None = None
+    location_type: str | None = None
+    oblast: dict[str, object] | None = None
+
+
+class RuleMatchingResponse(BaseModel):
+    mode: Literal["any", "all"]
+    terms: list[str] = Field(default_factory=list)
+    excluded_terms: list[str] = Field(default_factory=list)
+    case_sensitive: bool = False
+
+
+class MobileRuleResponse(BaseModel):
+    id: str
+    title: str
+    location: LocationResponse | None = None
+    matching: RuleMatchingResponse
+    match_terms: list[str] = Field(default_factory=list)
+
+
+class MobileChannelResponse(BaseModel):
+    id: str
+    name: str
+    username: str
+    rules: list[MobileRuleResponse] = Field(default_factory=list)
+
+
+class RulesResponse(BaseModel):
+    channels: list[MobileChannelResponse] = Field(default_factory=list)
+
+
 def _available_rule_keys(state: StateRepository) -> set[str]:
     configured_rules = state.load_rules()
     return {
@@ -102,7 +135,7 @@ def create_app(
         finally:
             await store.close()
 
-    app = FastAPI(title="Telegram Alert API", version="0.6.3", lifespan=lifespan, docs_url=None, redoc_url=None)
+    app = FastAPI(title="Telegram Alert API", version="0.7.0", lifespan=lifespan, docs_url=None, redoc_url=None)
 
     @app.get("/api/app_ico", name="app_ico")
     async def app_ico() -> FileResponse:
@@ -144,20 +177,36 @@ def create_app(
             "events": [_event_payload(event) for event in stored_events],
         }
 
-    @app.get("/api/rules")
-    async def rules() -> dict[str, object]:
+    @app.get("/api/rules", response_model=RulesResponse)
+    async def rules() -> RulesResponse:
         configured_rules = state.load_rules()
-        channels = []
+        channels: list[MobileChannelResponse] = []
         for resource in state.load_resources():
+            serialized_rules: list[MobileRuleResponse] = []
+            for descriptor in describe_scenarios(configured_rules.get(resource.id, {})):
+                terms = list(descriptor.terms)
+                serialized_rules.append(
+                    MobileRuleResponse(
+                        id=descriptor.id,
+                        title=descriptor.title,
+                        location=await _rule_location(app.state.store, descriptor.location_uid),
+                        matching=RuleMatchingResponse(
+                            mode=descriptor.matching_mode,
+                            terms=terms,
+                            excluded_terms=list(descriptor.excluded_terms),
+                        ),
+                        match_terms=terms,
+                    )
+                )
             channels.append(
-                {
-                    "id": resource.id,
-                    "name": resource.name,
-                    "username": resource.username,
-                    "rules": [{"id": descriptor.id, "title": descriptor.title, "location": await _rule_location(app.state.store, descriptor.location_uid)} for descriptor in describe_scenarios(configured_rules.get(resource.id, {}))],
-                }
+                MobileChannelResponse(
+                    id=resource.id,
+                    name=resource.name,
+                    username=resource.username,
+                    rules=serialized_rules,
+                )
             )
-        return {"channels": channels}
+        return RulesResponse(channels=channels)
 
     @app.get("/api/locations/regions")
     async def location_regions() -> dict[str, object]:
