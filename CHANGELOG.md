@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## v0.8.0 - 2026-09-23
+
+### Added
+
+- `GET /api/air-raid-alerts` exposes the monitor's cached active air-raid locations from Alerts.in.ua for map clients.
+- Desktop application now includes a «Мапа тривог» tab with an active-alert table and API endpoint control.
+
 ## v0.7.1 - 2026-09-23
 
 ### Fixed

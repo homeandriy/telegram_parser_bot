@@ -23,12 +23,17 @@ logger = logging.getLogger(__name__)
 
 
 class Monitor:
-    def __init__(self, settings: Settings, state: StateRepository | None = None) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        state: StateRepository | None = None,
+        alerts_client: AlertsInUaClient | None = None,
+    ) -> None:
         self.settings = settings
         self.store = PostgresStore(settings.database_dsn)
         self.notifier = WebhookNotifier(settings.notifier_endpoint, settings.notifier_secret)
         self.mobile_push = MobilePushDispatcher(self.store)
-        self.alerts = AlertsInUaClient(settings.alerts_in_ua_token)
+        self.alerts = alerts_client or AlertsInUaClient(settings.alerts_in_ua_token)
         self.active_location_uids: frozenset[str] = frozenset()
         self.state = state
 
@@ -175,6 +180,7 @@ def run_daemon(settings: Settings, state: StateRepository | None = None) -> None
     from ..api import serve_api
 
     async def run_services() -> None:
-        await asyncio.gather(Monitor(settings, state).daemon(), serve_api(settings, state))
+        alerts = AlertsInUaClient(settings.alerts_in_ua_token)
+        await asyncio.gather(Monitor(settings, state, alerts).daemon(), serve_api(settings, state, alerts))
 
     asyncio.run(run_services())

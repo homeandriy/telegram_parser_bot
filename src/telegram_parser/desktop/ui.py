@@ -94,6 +94,28 @@ class FetchWorker(QThread):
             self.failed.emit(str(error))
 
 
+class AirRaidMapWorker(QThread):
+    """Fetch map-ready alerts from a configured Alert API without blocking Qt."""
+
+    completed = Signal(object)
+    failed = Signal(str)
+
+    def __init__(self, endpoint: str) -> None:
+        super().__init__()
+        self.endpoint = endpoint
+
+    def run(self) -> None:
+        try:
+            response = httpx.get(self.endpoint, timeout=8.0)
+            response.raise_for_status()
+            payload = response.json()
+            if not isinstance(payload, dict) or not isinstance(payload.get("alerts"), list):
+                raise ValueError("API повернув некоректну відповідь тривог")
+            self.completed.emit(payload)
+        except (httpx.HTTPError, ValueError) as error:
+            self.failed.emit(str(error))
+
+
 class TelethonAuthWorker(QThread):
     completed = Signal(str)
     failed = Signal(str)
@@ -369,6 +391,7 @@ class MainWindow(QMainWindow):
         style = self.style()
         self.tabs.addTab(self.channels_tab(), style.standardIcon(QStyle.StandardPixmap.SP_DirIcon), "Канали")
         self.tabs.addTab(self.rules_tab(), style.standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView), "Правила")
+        self.tabs.addTab(self.map_tab(), style.standardIcon(QStyle.StandardPixmap.SP_DialogHelpButton), "Мапа тривог")
         self.tabs.addTab(self.settings_tab(), style.standardIcon(QStyle.StandardPixmap.SP_FileDialogContentsView), "Налаштування")
         self.tabs.addTab(self.logs_tab(), style.standardIcon(QStyle.StandardPixmap.SP_FileDialogInfoView), "Журнал")
         header = QWidget()
@@ -580,6 +603,88 @@ class MainWindow(QMainWindow):
         splitter = QSplitter(); splitter.addWidget(left); splitter.addWidget(right); splitter.setSizes([300, 900])
         layout = QVBoxLayout(tab); layout.addWidget(splitter)
         return tab
+
+    def map_tab(self) -> QWidget:
+        tab = QWidget()
+        self.air_raid_map_workers: list[AirRaidMapWorker] = []
+        local_api_port = self.repository.load_settings()["api_port"]
+        self.air_raid_api_endpoint = QLineEdit(f"http://127.0.0.1:{local_api_port}/api/air-raid-alerts")
+        self.air_raid_api_endpoint.setPlaceholderText("https://telegram-alert.webbooks.com.ua/api/air-raid-alerts")
+        self.air_raid_status = QLabel("Оновіть дані, щоб побачити активні повітряні тривоги.")
+        self.air_raid_status.setWordWrap(True)
+        self.air_raid_table = QTableWidget(0, 5)
+        self.air_raid_table.setHorizontalHeaderLabels(["Локація", "Тип", "Область", "Початок", "Оновлено"])
+        self.air_raid_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.air_raid_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.air_raid_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        for column in range(1, 5):
+            self.air_raid_table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
+        refresh = QPushButton("Оновити тривоги")
+        set_button_icon(refresh, QStyle.StandardPixmap.SP_BrowserReload, "Отримати кешований список активних тривог із Alert API")
+        refresh.clicked.connect(self.refresh_air_raid_map)
+        open_official_map = QPushButton("Відкрити мапу alerts.in.ua")
+        set_button_icon(open_official_map, QStyle.StandardPixmap.SP_DialogOpenButton, "Відкрити офіційну інтерактивну мапу в браузері")
+        open_official_map.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://alerts.in.ua/")))
+        controls = QHBoxLayout()
+        controls.addWidget(QLabel("Alert API:"))
+        controls.addWidget(self.air_raid_api_endpoint, 1)
+        controls.addWidget(refresh)
+        controls.addWidget(open_official_map)
+        note = QLabel(
+            "Ця вкладка показує дані, готові для інтерактивної карти: активні локації, типи та час. "
+            "Мобільний клієнт може накласти їх на власний GeoJSON-контур областей і районів."
+        )
+        note.setWordWrap(True)
+        layout = QVBoxLayout(tab)
+        layout.addWidget(note)
+        layout.addLayout(controls)
+        layout.addWidget(self.air_raid_status)
+        layout.addWidget(self.air_raid_table, 1)
+        return tab
+
+    def refresh_air_raid_map(self) -> None:
+        endpoint = self.air_raid_api_endpoint.text().strip()
+        if not endpoint.startswith(("https://", "http://")):
+            self.air_raid_status.setText("Вкажіть повний URL Alert API (http:// або https://).")
+            return
+        self.air_raid_status.setText("Оновлення даних тривог…")
+        worker = AirRaidMapWorker(endpoint)
+        self.air_raid_map_workers.append(worker)
+        worker.completed.connect(self.air_raid_map_refreshed)
+        worker.failed.connect(self.air_raid_map_failed)
+        worker.finished.connect(lambda: self.air_raid_map_workers.remove(worker) if worker in self.air_raid_map_workers else None)
+        worker.start()
+
+    def air_raid_map_refreshed(self, payload: object) -> None:
+        if not isinstance(payload, dict):
+            self.air_raid_map_failed("API повернув некоректну відповідь")
+            return
+        alerts = payload.get("alerts", [])
+        if not isinstance(alerts, list):
+            self.air_raid_map_failed("API не містить списку тривог")
+            return
+        self.air_raid_table.setRowCount(0)
+        for row, alert in enumerate(alerts):
+            if not isinstance(alert, dict):
+                continue
+            self.air_raid_table.insertRow(row)
+            values = (
+                alert.get("location_title") or alert.get("location_uid") or "—",
+                alert.get("location_type") or "—",
+                alert.get("location_oblast") or "—",
+                alert.get("started_at") or "—",
+                alert.get("updated_at") or "—",
+            )
+            for column, value in enumerate(values):
+                self.air_raid_table.setItem(row, column, QTableWidgetItem(str(value)))
+        updated_at = payload.get("updated_at") or "ще не отримано"
+        if not payload.get("available", False):
+            self.air_raid_status.setText("Alerts.in.ua не налаштовано на сервері Alert API.")
+        else:
+            self.air_raid_status.setText(f"Активних повітряних тривог: {self.air_raid_table.rowCount()}. Дані API: {updated_at}.")
+
+    def air_raid_map_failed(self, error: str) -> None:
+        self.air_raid_status.setText(f"Не вдалося отримати дані мапи: {error}")
 
     def settings_tab(self) -> QWidget:
         tab = QWidget(); settings = self.repository.load_settings()

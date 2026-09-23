@@ -12,6 +12,7 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+from ..alerts.client import ActiveAirRaidSnapshot, AlertsInUaClient
 from ..core.config import Settings
 from ..notifications.mobile_push import VALID_SOUNDS, is_valid_expo_push_token
 from ..domain.rules import describe_scenarios
@@ -111,6 +112,24 @@ class RulesResponse(BaseModel):
     channels: list[MobileChannelResponse] = Field(default_factory=list)
 
 
+class ActiveAirRaidAlertResponse(BaseModel):
+    id: int | str | None = None
+    location_uid: str
+    location_title: str | None = None
+    location_type: str | None = None
+    location_oblast_uid: str | None = None
+    location_oblast: str | None = None
+    started_at: str | None = None
+    updated_at: str | None = None
+
+
+class ActiveAirRaidsResponse(BaseModel):
+    source: Literal["alerts.in.ua"] = "alerts.in.ua"
+    available: bool
+    updated_at: str | None = None
+    alerts: list[ActiveAirRaidAlertResponse] = Field(default_factory=list)
+
+
 def _available_rule_keys(state: StateRepository) -> set[str]:
     configured_rules = state.load_rules()
     return {
@@ -124,6 +143,7 @@ def create_app(
     settings: Settings,
     state: StateRepository,
     store_factory: Callable[[str], PostgresStore] = PostgresStore,
+    alerts_client: AlertsInUaClient | None = None,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -135,7 +155,8 @@ def create_app(
         finally:
             await store.close()
 
-    app = FastAPI(title="Telegram Alert API", version="0.7.1", lifespan=lifespan, docs_url=None, redoc_url=None)
+    app = FastAPI(title="Telegram Alert API", version="0.8.0", lifespan=lifespan, docs_url=None, redoc_url=None)
+    app.state.alerts = alerts_client or AlertsInUaClient(settings.alerts_in_ua_token)
 
     @app.get("/api/app_ico", name="app_ico")
     async def app_ico() -> FileResponse:
@@ -208,6 +229,28 @@ def create_app(
             )
         return RulesResponse(channels=channels)
 
+    @app.get("/api/air-raid-alerts", response_model=ActiveAirRaidsResponse)
+    async def air_raid_alerts() -> ActiveAirRaidsResponse:
+        """Return the monitor's cached active air-raid locations for map clients."""
+        snapshot: ActiveAirRaidSnapshot = app.state.alerts.active_air_raid_snapshot()
+        return ActiveAirRaidsResponse(
+            available=app.state.alerts.is_configured,
+            updated_at=_timestamp(snapshot.updated_at),
+            alerts=[
+                ActiveAirRaidAlertResponse(
+                    id=alert.id,
+                    location_uid=alert.location_uid,
+                    location_title=alert.location_title,
+                    location_type=alert.location_type,
+                    location_oblast_uid=alert.location_oblast_uid,
+                    location_oblast=alert.location_oblast,
+                    started_at=alert.started_at,
+                    updated_at=alert.updated_at,
+                )
+                for alert in snapshot.alerts
+            ],
+        )
+
     @app.get("/api/locations/regions")
     async def location_regions() -> dict[str, object]:
         return {"locations": await app.state.store.list_location_regions()}
@@ -259,10 +302,14 @@ def create_app(
     return app
 
 
-async def serve_api(settings: Settings, state: StateRepository) -> None:
+async def serve_api(
+    settings: Settings,
+    state: StateRepository,
+    alerts_client: AlertsInUaClient | None = None,
+) -> None:
     server = uvicorn.Server(
         uvicorn.Config(
-            create_app(settings, state),
+            create_app(settings, state, alerts_client=alerts_client),
             host=settings.api_host,
             port=settings.api_port,
             log_level="info",

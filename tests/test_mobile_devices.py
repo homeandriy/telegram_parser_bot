@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 
 from telegram_parser.api import create_app
+from telegram_parser.alerts.client import ActiveAirRaidAlert, ActiveAirRaidSnapshot
 from telegram_parser.core.config import ChannelConfig, Settings
 from telegram_parser.desktop.state import Resource, StateRepository
 
@@ -70,6 +72,27 @@ class FakeStore:
         return device_id, len(subscriptions)
 
 
+class FakeAlertsClient:
+    is_configured = True
+
+    def active_air_raid_snapshot(self) -> ActiveAirRaidSnapshot:
+        return ActiveAirRaidSnapshot(
+            updated_at=datetime(2026, 9, 23, 10, 0, tzinfo=timezone.utc),
+            alerts=(
+                ActiveAirRaidAlert(
+                    id=42,
+                    location_uid="31",
+                    location_title="м. Київ",
+                    location_type="Місто з спеціальним статусом",
+                    location_oblast_uid="31",
+                    location_oblast="м. Київ",
+                    started_at="2026-09-23T09:30:00Z",
+                    updated_at="2026-09-23T10:00:00Z",
+                ),
+            ),
+        )
+
+
 class MobileDevicesApiTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tempdir = tempfile.TemporaryDirectory()
@@ -91,7 +114,7 @@ class MobileDevicesApiTest(unittest.TestCase):
             }
         )
         self.store = FakeStore("postgresql://test")
-        self.client = TestClient(create_app(settings(), self.state, store_factory=lambda _dsn: self.store))
+        self.client = TestClient(create_app(settings(), self.state, store_factory=lambda _dsn: self.store, alerts_client=FakeAlertsClient()))
         self.client.__enter__()
 
     def tearDown(self) -> None:
@@ -221,6 +244,17 @@ class MobileDevicesApiTest(unittest.TestCase):
 
         response_schema = schema["paths"]["/api/rules"]["get"]["responses"]["200"]["content"]["application/json"]["schema"]
         self.assertEqual("#/components/schemas/RulesResponse", response_schema["$ref"])
+
+    def test_air_raid_alerts_endpoint_returns_cached_map_data(self) -> None:
+        response = self.client.get("/api/air-raid-alerts")
+
+        self.assertEqual(200, response.status_code)
+        payload = response.json()
+        self.assertEqual("alerts.in.ua", payload["source"])
+        self.assertTrue(payload["available"])
+        self.assertEqual("2026-09-23T10:00:00+00:00", payload["updated_at"])
+        self.assertEqual("31", payload["alerts"][0]["location_uid"])
+        self.assertEqual("м. Київ", payload["alerts"][0]["location_title"])
 
     def test_rules_resolves_oblast_from_configured_rayon_uid(self) -> None:
         rules = self.state.load_rules()
